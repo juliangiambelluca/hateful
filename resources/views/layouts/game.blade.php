@@ -11,16 +11,28 @@
 
 
     <link href="{{ URL::to('css/bootstrap.css') }}" rel="stylesheet">
+    
     <link href="{{ URL::to('css/game.css') }}" rel="stylesheet">
+
     <script src="https://kit.fontawesome.com/d5ff43701b.js" crossorigin="anonymous"></script>
+
+    <script src="{{ URL::to('js/jquery.js') }}"></script>
+
+    <script src="{{ URL::to('js/bootstrap.js') }}"></script>
+
+    <script src="{{ URL::to('js/bootstrap.bundle.js') }}"></script>
 
   </head>
 
 
   <body>
   @include('partials.topbar')
+  
+<div class="content-fluid">
+  <div class="row" style="width: 100%">
   @include('partials.sidebar')
   @yield('content')
-  
+  </div>
+</div>
   </body>
 </html>

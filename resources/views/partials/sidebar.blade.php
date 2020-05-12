@@ -1,11 +1,20 @@
 
-    <nav class="col-md-3 col-lg-2 d-none d-md-block bg-light sidebar">
-      <div class="sidebar-sticky">
+    <nav class="col-md-3 col-lg-2 d-none d-md-block bg-light ">
+      <div class="">
       
           <div>
-          <div class="card-body contacts_body">
+          <div class="card-body contacts_body p-2">
 
 						<ui class="contacts">
+						<li class="game-password" style="margin-bottom: 0px!important;">
+						<hr>
+							<div class="d-flex bd-highlight">
+								<div class="user_info">
+									<span>00:45</span>
+								</div>
+							</div>
+							<hr>
+</li>
             <li class="game-password" style="margin-bottom: 0px!important;">
 							<div class="d-flex bd-highlight">
 								<div class="user_info">

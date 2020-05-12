@@ -15,4 +15,3 @@
             </div>
         </div>
     </div>
-    <small class="pl-2">Scroll -></small>

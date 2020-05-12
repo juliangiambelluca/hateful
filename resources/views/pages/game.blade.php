@@ -5,14 +5,13 @@ play hateful
 @endsection
 
 @section('content')
-<div class="content-fluid">
   
     <main role="main" class="col-md-9 col-lg-10 ml-sm-auto">
 
       <div id="game-table">
-        <div class="row pt-3">
+        <div class="row pt-3 pl-2">
         
-          <div class="col-6 col-sm-4 col-lg-3">
+          <div class="col-6 col-md-5 col-lg-4 col-xl-3">
             <div class="card game-card current-question question-card">
               <div class="card-body game-card-body p-2 center">
                 <div class="card-text-question ">
@@ -22,39 +21,68 @@ play hateful
             </div>
           </div>  
           
-          <div id="answer-table" class="col-6 col-sm-8 col-lg-9">
-            @include('partials.answer-table')
+          <div id="confirm-answer"  class="col-6 col-md-7 col-lg-6 col-xl-9 p-0">
+            @include('partials.confirm-answer')
+          </div>
+          <div id="card-backs" style="display:none" class="col-6 col-sm-8 col-lg-9">
+            @include('partials.card-backs')
           </div>
         </div> 
         <!-- End row  -->
       </div>      
       <!-- End Game table -->
 
-      <div class="row" style="width: 100%; ">
-        <div class="col-2">
-          <hr>
-           <h6 class="text-center" style="font-weight: 800">00:45</h6>
-          <hr>
-        </div>
-        <div class="col-8 col-lg-5">
-          <hr>
-           <h6 class="text-center" style="font-weight: 800"><i class="fas fa-crown"></i> john cena is question master <i class="fas fa-crown"></i></h6>
-          <hr>
-        </div>
-      </div>
-
       <div id="my-cards">
         @include('partials.my-cards')
       </div>
      
     </main>
-  
+
+
+
+
+<!-- Modal -->
+<div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"  role="document" id="write-answer-modal-dialog">
+    <div class="modal-content" id="write-answer-modal-content">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+    
+      <div class="modal-body">
+        <div class="form-group" style="height: 100% !Important">
+            <textarea class="form-control write-answer-input card-text-answer" placeholder="write something witty..." id="write-answer-input"></textarea>
+          </div>
+      </div>
+     
+    </div>
+  </div>
 </div>
-<script src="https://code.jquery.com/jquery-3.4.1.slim.min.js" integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n" crossorigin="anonymous"></script>
-      <script>window.jQuery || document.write('<script src="/docs/4.4/assets/js/vendor/jquery.slim.min.js"><\/script>')</script><script src="/docs/4.4/dist/js/bootstrap.bundle.min.js" integrity="sha384-6khuMg9gaYr5AxOqhkVIODVIvm9ynTT5J4V1cfthmT+emCG6yVmEZsRHdxlotUnm" crossorigin="anonymous"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/feather-icons/4.9.0/feather.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.7.3/Chart.min.js"></script>
-        <script src="dashboard.js"></script>
+
+<script>
+  $('#myModal').on('shown.bs.modal', function () {
+  $('#write-answer-input').trigger('focus')
+
+  answerModalWidth = $('#write-answer-modal-content').width();
+  answerModalHeight = $('#write-answer-modal-content').height();
+  
+  if (answerModalHeight > answerModalWidth){
+    //landscape. card height at 90%
+    $('#write-answer-modal-content').width((answerModalHeight * 0.7) + "px")
+
+  } else {
+    //portrait. card width at 90%
+    $('#write-answer-modal-content').height((answerModalWidth * 1.5) + "px")
+  }
+
+  
+
+})
+</script>
+
+
+
+
 
 
 @endsection
