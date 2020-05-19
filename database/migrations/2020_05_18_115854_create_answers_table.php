@@ -20,6 +20,7 @@ class CreateAnswersTable extends Migration
             $table->integer('nameposition');
             $table->integer('score');	
             $table->integer('player_id');
+            $table->string('deck', 16);
         });
     }
 
