@@ -15,16 +15,25 @@
 
 
 
-Route::get('/play', function () {
-    return view('pages.game');
+Route::get('/', function () {
+    return view('pages.');
 })->name("pages.game");
 
 Route::get('/new-game', function () {
-    return view('pages.new-game');
-})->name("pages.new-game");
+    return view('pages.enter-details');
+})->name("new-game");
 
-Route::get('/{gameHash?}', [
-    'uses' => 'GameController@findGame',
-    'as' => 'pages.find-game'
+Route::get('/join-game', [
+    'uses' => 'GameController@joinGame',
+    'as' => 'join-game'
 ]);
 
+
+
+
+
+//Make sure this stays last as otherwise following route URLs will be treated as game hashes.
+Route::get('/{gameHash?}', [
+    'uses' => 'GameController@findGame',
+    'as' => 'find-game'
+]);
