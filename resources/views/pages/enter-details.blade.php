@@ -120,7 +120,16 @@
           
         </small>
       </div>
+      @if(isset($gameFound))
+        @if($gameFound === true)
+        <button class="btn btn-lg btn-primary btn-block" type="submit">Join Game</button>
+        @else
+        <button class="btn btn-lg btn-primary btn-block" type="submit">Create New Game</button>
+        @endif
+      @else
       <button class="btn btn-lg btn-primary btn-block" type="submit">Create New Game</button>
+      @endif
+      
       <p class="mt-5 mb-3 text-muted">&copy; Julian Giambelluca</p>
     </form>
   </body>
