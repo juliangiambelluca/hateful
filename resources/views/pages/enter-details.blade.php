@@ -37,6 +37,7 @@
 
   .form-signin {
     width: 100%;
+    height: 100%;
     max-width: 330px;
     padding: 15px;
     margin: 0 auto;
@@ -85,17 +86,39 @@
         </h3>
       @endif
       <br>
-      <label for="inputScreenName" class="sr-only">Witty Screen Name</label>
-      <input type="input" id="inputScreenName" class="form-control" placeholder="Witty Screen Name" required autofocus>
-      <br>      
-      <label for="inputName" class="sr-only">Your Actual Name</label>
-      <input type="input" id="inputName" class="form-control" placeholder="Your Actual Name" required autofocus>
+      
+      <label for="inputName" class="sr-only">Please enter your full name.</label>
+      <input type="input" id="inputName" class="form-control" placeholder="Enter your full name." required autofocus>
       
       <div class="checkbox mb-3">
         <br>
-        <label>
-          <input type="checkbox" value="remember-me"> Remember me
-        </label>
+        <small>
+        <a href="#" onclick="document.getElementById('more-disclaimers').style.display='block'"><b>You must be 18 or older to play this game.</b><br> By continuing you accept the Privacy Policy and T&C's. Read More+</a>
+        </small>
+        <small id="more-disclaimers" style="display: none;">
+        <br>
+          <b>This game is politically incorrect. DO NOT PLAY THIS GAME if you are easily offended.</b>
+          <br><br>
+          Your details are deleted when the game ends.
+          <br><br>
+          Please wash your hands with soap and water for 20 seconds before playing this game.
+          <br><br>
+          Cards you make may be stored anonymously and offered to other players.
+          <br><br>
+          If someone in your game writes a card with your name on it, 
+          we will try to identify it and delete the name from the card. 
+          We'll replace your name with a placeholder so we can make more Roaster Cards.
+          <br><br>
+          We may review user-created content.
+          <br><br>
+          The cards you make are not stored in the database unless it wins the round. We don't wanna store crap.
+          <br><br>
+          We are not responsible for whatever crap you put in those cards.
+          <br><br>
+          Please do not use cards as a way to communicate illegal ideas or organise crime.
+          <br><br>
+          
+        </small>
       </div>
       <button class="btn btn-lg btn-primary btn-block" type="submit">Create New Game</button>
       <p class="mt-5 mb-3 text-muted">&copy; Julian Giambelluca</p>
