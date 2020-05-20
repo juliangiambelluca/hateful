@@ -24,7 +24,7 @@ Route::get('/new-game', function () {
 })->name("new-game");
 
 Route::get('/join-game', [
-    'uses' => 'GameController@joinGame',
+    'uses' => 'PlayerController@joinGame',
     'as' => 'join-game'
 ]);
 
