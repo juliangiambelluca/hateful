@@ -14,7 +14,7 @@
 
 Route::get('/{gameID?}', [
     'uses' => 'GameController@findGame',
-    'as' => 'pages.viewer'
+    'as' => 'pages.start'
 ]); 
 
 Route::get('/play', function () {
