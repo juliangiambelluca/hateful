@@ -20,7 +20,7 @@ class GameController extends Controller
         } else {
             //A Game ID has been entered but it doesn't exist. Show the create a game page
             //and let the user know they entered an invalid ID.
-            return view('pages.new-game')->with('gameNotFound','true');
+            return view('pages.new-game')->with('gameNotFound',true);
         }
 
    }
