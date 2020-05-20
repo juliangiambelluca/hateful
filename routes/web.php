@@ -11,10 +11,17 @@
 |
 */
 
-Route::get('/', function () {
-    return view('welcome');
-});
+
+Route::get('/{gameID?}', [
+    'uses' => 'GameController@findGame',
+    'as' => 'pages.viewer'
+]); 
 
 Route::get('/play', function () {
     return view('pages.game');
 })->name("pages.game");
+
+Route::get('/new-game', function () {
+    return view('pages.new-game');
+})->name("pages.new-game");
+
