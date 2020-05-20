@@ -12,10 +12,10 @@ class GameController extends Controller
    public function findGame($gameID = -1) {
         $game = DB::table('games')->where('hash', '=', $gameID)->get(); 
 
-        if(isset($set->flashcards)){ 
+        if(isset($game->id)){ 
             //Game exists - Take user to join game page
             return view('pages.join-game');
-        } else if ($gameID=-1) {
+        } else if ($gameID===-1) {
             //Game ID has not been set (or has been set to -1). Either way, show the Homepage
             return view('welcome');
         } else {
