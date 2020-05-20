@@ -11,14 +11,9 @@
 |
 */
 
-Route::get('/', function () {
-    return view('welcome');
-})->name("homepage");
 
-Route::get('/g/{gameID?}', [
-    'uses' => 'GameController@findGame',
-    'as' => 'pages.find-game'
-]);
+
+
 
 Route::get('/play', function () {
     return view('pages.game');
@@ -27,4 +22,9 @@ Route::get('/play', function () {
 Route::get('/new-game', function () {
     return view('pages.new-game');
 })->name("pages.new-game");
+
+Route::get('/{gameID?}', [
+    'uses' => 'GameController@findGame',
+    'as' => 'pages.find-game'
+]);
 
