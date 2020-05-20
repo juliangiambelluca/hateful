@@ -17,7 +17,8 @@ class CreatePlayersTable extends Migration
             $table->increments('id');
             $table->timestamps();
             $table->string('fullname', 32);	
-            $table->integer('score');	
+            $table->integer('score')->nullable();
+            $table->string('session', 64);	
             $table->integer('game_id');	
 
         });
