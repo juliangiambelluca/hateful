@@ -6,6 +6,7 @@ use App\Game;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Crypt;
 
 class GameController extends Controller
 {   
@@ -28,7 +29,7 @@ class GameController extends Controller
    }
 
 
-   public function joinGame(Request $request, $session){
+   public function joinGame(Request $request, Store $session){
 
     $attributeNames = array(
         'player-name' => 'Name'
@@ -47,7 +48,17 @@ class GameController extends Controller
         $gamePassword = $oldGame->password;
         if ($inputPassword === $gamePassword) {
             // The passwords match...
-            $session->put('gameID', $oldGame->id)
+            
+
+            $encryptedName = Crypt::encryptString($request->input('player-name'));
+            
+
+$decrypted = Crypt::decryptString($encrypted);
+            $session->put('gameID', $oldGame->id);
+
+
+
+            $session->put('sessionToken', $oldGame->id);
         } else {
             //Passwords did not match
         }
@@ -65,7 +76,7 @@ class GameController extends Controller
     ]);
 
     $oldSet = Set::find($request->input('fc-set-id'));
-    $request->input('fc-set-desc')
+    $request->input('fc-set-desc');
 
 
     if (isset($oldSet->id)){
