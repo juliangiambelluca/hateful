@@ -120,8 +120,8 @@
           
         </small>
       </div>
-      @if(isset($gameFound))
-        @if($gameFound === true)
+      @if(isset($gameID))
+        @if($gameID !== "gameNotFound")
         <button class="btn btn-lg btn-primary btn-block" onclick="joinGame()">Join Game</button>
         @else
         <button class="btn btn-lg btn-primary btn-block" onclick="createGame()">Create New Game</button>
@@ -137,5 +137,11 @@
 
 
 <script>
+
+function joinGame(){
+  
+
+}
+
 
 </script>
