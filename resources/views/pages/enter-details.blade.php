@@ -65,16 +65,25 @@
     <form class="form-signin">
     <h1 class="mb-1" style="font-weight: 800">hateful. [beta]</h1>
     <br>
-      <h2 class="h3 mb-3 font-weight-normal">
-      @if(isset($gameNotFound))
-        This Game ID does not exist <br>
+
+      @if(isset($gameFound))
+        @if($gameFound === true)
+        <h2 class="h3 mb-3 font-weight-normal">
+          Join Game.
+        </h2>
+        <label for="inputPassword" class="sr-only">Game Password</label>
+        <input type="password" id="inputPassword" class="form-control" placeholder="Game Password" required>
+        @else
+        <h2 class="h3 mb-3 font-weight-normal">
+        This Game ID does not exist. <br>
         Why not start a new game?
+        </h2>
+        @endif
       @else
-        Let's get started
+        <h2 class="h3 mb-3 font-weight-normal">
+        Let's get started.
+        </h2>
       @endif
-      </h2>
-      <label for="inputPassword" class="sr-only">Game Password</label>
-      <input type="password" id="inputPassword" class="form-control" placeholder="Game Password" required>
       <br>
       <label for="inputScreenName" class="sr-only">Witty Screen Name</label>
       <input type="input" id="inputScreenName" class="form-control" placeholder="Witty Screen Name" required autofocus>
