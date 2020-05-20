@@ -495,7 +495,11 @@ VALUES
 ('The milkman.', 'US'),
 ('Braiding three penises into a Twizzler.', 'US'),
 ('My black ass.', 'US'),
-('Kanye West.', 'US'),
+('Kanye West.', 'US');
+
+
+INSERT INTO `answers` (`answer`, `deck`)
+VALUES 
 ('Poverty.', 'US'),
 ('Judging everyone.', 'US'),
 ('PTSD.', 'US'),
@@ -991,7 +995,10 @@ VALUES
 ('Savagely beating a mascot.', 'RED'),
 ('Staring at a painting and going &quot;hmmmmmm...&quot;', 'RED'),
 ('Nubile slave boys.', 'RED'),
-('Drinking ten 5-hour ENERGYs&reg; to get fifty continuous hours of energy.', 'RED'),
+('Drinking ten 5-hour ENERGYs&reg; to get fifty continuous hours of energy.', 'RED');
+
+INSERT INTO `answers` (`answer`, `deck`)
+VALUES 
 ('A sweaty, panting leather daddy.', 'RED'),
 ('My manservant, Claude.', 'RED'),
 ('Khakis.', 'BLUE'),
@@ -1488,7 +1495,10 @@ VALUES
 ('Kicking the middle class in the balls with a regressive tax code.', 'V4HIL'),
 ('Slapping Ted Cruz over and over.', 'V4HIL'),
 ('Eating the president&apos;s pussy.', 'V4HIL'),
-('Keeping the government out of my vagina.', 'V4HIL'),
+('Keeping the government out of my vagina.', 'V4HIL');
+
+INSERT INTO `answers` (`answer`, `deck`)
+VALUES 
 ('The fact that Hillary Clinton is a woman.', 'V4HIL'),
 ('Increasing economic inequality and political polarization.', 'V4HIL'),
 ('The Bernie Sanders revolution.', 'V4HIL'),
@@ -1984,7 +1994,10 @@ VALUES
 ('Buying and returning clothes just to have someone to talk to.', 'RTPRD'),
 ('A marriage-destroying game of The Resistance .', 'TBLTP'),
 ('SIX GOD DAMN HOURS OF FUCKING DIPLOMACY.', 'TBLTP'),
-('Condensing centuries of economic exploitation into 90 minutes of gaming fun.', 'TBLTP'),
+('Condensing centuries of economic exploitation into 90 minutes of gaming fun.', 'TBLTP');
+
+INSERT INTO `answers` (`answer`, `deck`)
+VALUES 
 ('Spending 8 years in the Himalayas becoming a master of dice-rolling and resource allocation.', 'TBLTP'),
 ('A disappointing season of Tabletop that&apos;s just about tables.', 'TBLTP'),
 ('A zombie with a tragic backstory.', 'TBLTP'),
@@ -2039,4 +2052,4 @@ VALUES
 ('Destroying Dick Cheney&apos;s last horcrux.', 'WWW'),
 ('Game of Thrones spoilers.', 'WWW'),
 ('Cat massage.', 'WWW'),
-('Matching with Mom on Tinder.', 'WWW')
+('Matching with Mom on Tinder.', 'WWW');
