@@ -68,21 +68,21 @@
 
       @if(isset($gameFound))
         @if($gameFound === true)
-        <h2 class="h3 mb-3 font-weight-normal">
+        <h3 class="h3 mb-3 font-weight-normal">
           Join Game.
-        </h2>
+        </h3>
         <label for="inputPassword" class="sr-only">Game Password</label>
         <input type="password" id="inputPassword" class="form-control" placeholder="Game Password" required>
         @else
-        <h2 class="h3 mb-3 font-weight-normal">
+        <h5 class="h5 mb-3 font-weight-normal">
         This Game ID does not exist. <br>
         Why not start a new game?
-        </h2>
+        </h5>
         @endif
       @else
-        <h2 class="h3 mb-3 font-weight-normal">
+        <h3 class="h3 mb-3 font-weight-normal">
         Let's get started.
-        </h2>
+        </h3>
       @endif
       <br>
       <label for="inputScreenName" class="sr-only">Witty Screen Name</label>
