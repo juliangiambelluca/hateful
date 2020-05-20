@@ -66,9 +66,9 @@
     <form class="form-signin">
     <h1 class="mb-1" style="font-weight: 800">hateful. [beta]</h1>
     <br>
-
-      @if(isset($gameFound))
-        @if($gameFound === true)
+    
+    @if(isset($gameID))
+        @if($gameID !== "gameNotFound")
         <h3 class="h3 mb-3 font-weight-normal">
           Join Game.
         </h3>

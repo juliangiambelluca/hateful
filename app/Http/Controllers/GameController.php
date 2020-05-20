@@ -10,11 +10,11 @@ class GameController extends Controller
 {   
 
    public function findGame($gameHash = -1) {
-        $game = DB::table('games')->where('hash', '=', $gameHash)->get(); 
-
+        $game = DB::table('games')->where('hash', '=', $gameHash)->first(); 
+        
         if(isset($game->id)){ 
             //Game exists - Take user to join game page
-            return view('pages.enter-details')->with('gameID',$game->id);
+            return view('pages.enter-details')->with('gameID', $game->id);
         } else if ($gameHash===-1) {
             //Game Hash has not been set (or has been set to -1). Either way, show the Homepage
             return view('welcome');
