@@ -17,10 +17,10 @@ class CreateQuestionsTable extends Migration
             $table->increments('id');
             $table->timestamps();
             $table->string('question', 128);
-            $table->integer('score');	
-            $table->integer('player_id');	
+            $table->integer('score')->nullable();
+            $table->integer('player_id')->nullable();
             $table->tinyInteger('blanks');	
-            $table->string('deck', 16);
+            $table->string('deck', 16)->nullable();
         });
     }
 

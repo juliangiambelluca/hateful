@@ -17,10 +17,10 @@ class CreateAnswersTable extends Migration
             $table->increments('id');
             $table->timestamps();
             $table->string('answer', 128);
-            $table->integer('nameposition');
-            $table->integer('score');	
-            $table->integer('player_id');
-            $table->string('deck', 16);
+            $table->integer('nameposition')->nullable();
+            $table->integer('score')->nullable();
+            $table->integer('player_id')->nullable();
+            $table->string('deck', 16)->nullable();
         });
     }
 
