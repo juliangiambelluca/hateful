@@ -63,10 +63,10 @@
 
 
   <body class="text-center">
-    <form class="form-signin">
+    <form id="form-inputs" class="form-signin">
     <h1 class="mb-1" style="font-weight: 800">hateful. [beta]</h1>
     <br>
-    
+
     @if(isset($gameID))
         @if($gameID !== "gameNotFound")
         <h3 class="h3 mb-3 font-weight-normal">
@@ -139,7 +139,69 @@
 <script>
 
 function joinGame(){
-  
+  function createSet(){
+    
+    //Get Inputs
+    let setInputs = {};
+    //Put all inputs into object
+    $.each($('#form-inputs').serializeArray(), function(i, field) {
+        setInputs[field.name] = field.value;
+    });
+    
+    //Send to server
+    const sendPackage= () => {
+        return new Promise((resolve, reject) => {
+            $.ajax({
+                url: "{{ route('join.game') }}",
+                type: 'POST',
+                dataType: "text",
+                data: setInputs,
+                success: function (response) {
+					// $( "#set-debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
+                    resolve(response);
+                    
+                },
+                error: function (response) {
+					// $( "#set-debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
+                    reject(response);
+                },
+            });
+         });
+    }
+    sendPackage().then(response => {
+        //Get resposnse
+        let setResponseObj = JSON.parse(response);
+        if(setResponseObj.result==="success"){
+            //The inputs were correct & the data saved to the database  
+            //Set current card's ID to enable updating db instead of insert
+            document.getElementById("fc-set-id").value = setResponseObj.setID;
+            $( "#set-title-set" ).html("Edit set");
+            $( "#set-title-cards" ).html(setResponseObj.setTitle);
+            
+			showCardsEditor();
+        } else {
+            //Unexpected response from server
+            $("#input-error-alert").fadeIn(450);
+            $( "#input-errors" ).html("Something went wrong. Please try again. [Details: Unexpected response from server]");
+        }
+    })
+    .catch(response => {
+        //If data validation fails, Laravel responds with status code 422 & Error messages in JSON.
+        if(response.status===422) {
+            let errorMsgsObj = JSON.parse(response.responseText);
+            $("#input-error-alert").fadeIn(450);
+            $( "#input-errors" ).html("");
+            //Extract each error message and append to alert
+            for (const property in errorMsgsObj) {
+                $( "#input-errors" ).append( errorMsgsObj[property] + "<br>");
+            }
+        } else {
+            //Something else went wrong
+            $("#input-error-alert").fadeIn(450);
+            $( "#input-errors" ).html(`Something went wrong. Please try again. [Details: Exception Caught. HTTP status: ${response.status}]`);
+        }
+    });
+}
 
 }
 
