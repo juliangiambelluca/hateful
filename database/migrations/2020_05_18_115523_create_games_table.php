@@ -17,6 +17,7 @@ class CreateGamesTable extends Migration
             $table->increments('id');
             $table->timestamps();
             $table->string('password', 64);	
+            $table->string('hash', 8);	
             $table->boolean('started');	
         });
     }
