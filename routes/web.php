@@ -23,7 +23,7 @@ Route::get('/new-game', function () {
     return view('pages.new-game');
 })->name("pages.new-game");
 
-Route::get('/{gameID?}', [
+Route::get('/{gameHash?}', [
     'uses' => 'GameController@findGame',
     'as' => 'pages.find-game'
 ]);
