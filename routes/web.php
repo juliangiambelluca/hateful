@@ -16,14 +16,14 @@
 
 
 Route::get('/', function () {
-    return view('pages.');
+    return view('welcome');
 })->name("pages.game");
 
 Route::get('/new-game', function () {
     return view('pages.enter-details');
 })->name("new-game");
 
-Route::get('/join-game', [
+Route::post('/join-game', [
     'uses' => 'PlayerController@joinGame',
     'as' => 'join-game'
 ]);
