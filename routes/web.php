@@ -23,8 +23,12 @@ Route::get('/new-game', function () {
     return view('pages.enter-details');
 })->name("new-game");
 
+Route::get('/play', function () {
+    return view('pages.game');
+})->name("pages.game");
+
 Route::post('/join-game', [
-    'uses' => 'PlayerController@joinGame',
+    'uses' => 'PlayerController@checkSessionForJoin',
     'as' => 'join-game'
 ]);
 
