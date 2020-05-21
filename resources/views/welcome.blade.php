@@ -51,7 +51,7 @@ hateful.
     <p class="lead font-weight-normal text-white">
     a familiar game with no censorship. release your inner demons. get nasty.
     </p>
-    <a class="btn btn-outline-secondary" href="{{ route('pages.game') }}">play the game</a>
+    <a class="btn btn-outline-secondary" href="{{ route('new-game') }}">play the game</a>
   </div>
   <div class="col-md-6">
   </div>
