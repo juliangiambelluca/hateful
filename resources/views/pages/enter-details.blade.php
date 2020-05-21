@@ -257,6 +257,83 @@ function joinGame(){
 		}
 	});
 }
+function createGame(){
+  event.preventDefault()
+
+	//Get Inputs
+	let setInputs = {};
+	//Put all inputs into object
+  	$.each($('#form-inputs').serializeArray(), function(i, field) {
+      setInputs[field.name] = field.value;
+	});
+  
+	//Send to server
+  	const sendPackage= () => {
+      	return new Promise((resolve, reject) => {
+          	$.ajax({
+				url: "{{ route('new-game') }}",
+        method: 'POST',
+				dataType: "text",
+				data: setInputs,
+				success: function (response) {
+				$( "#debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
+					resolve(response);
+				},
+				error: function (response) {
+				 $( "#debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
+					reject(response);
+				},
+         	});
+        });
+	}
+	sendPackage().then(response => {
+		//Get resposnse
+		let setResponseObj = JSON.parse(response);
+
+		switch(setResponseObj.result) {
+		case "game":
+			// Success, Load Game!
+			alert("game");
+			break;
+		case "lobby":
+			// Success, Load Lobby!
+			alert("lobby");
+			break;
+		case "password":
+			// Oops, Password does not match
+			alert("password");
+      break;
+    case "alreadyPlaying":
+			// Oops, Game not found
+			alert("This will sign you out your urrent game");
+			break;
+		case "gameNotFound":
+			// Oops, Game not found
+			alert("gameNotFound");
+			break;
+		default:
+			// Unexpected repomse
+		}
+	})
+	.catch(response => {
+		//If data validation fails, Laravel responds with status code 422 & Error messages in JSON.
+		if(response.status===422) {
+			let errorMsgsObj = JSON.parse(response.responseText);
+
+			//Fade in alert container 
+			$("#input-error-alert").fadeIn(450);
+			$( "#input-errors" ).html("");
+			//Extract each error message and append to input-errors as text
+			for (const property in errorMsgsObj) {
+				$( "#input-errors" ).append( errorMsgsObj[property] + "<br>");
+			}
+		} else {
+			//Something else went wrong
+			$("#input-error-alert").fadeIn(450);
+			$( "#input-errors" ).html(`Something went wrong. Please try again. [Details: Exception Caught. HTTP status: ${response.status}]`);
+		}
+	});
+}
 
 
 </script>
