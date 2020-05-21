@@ -11,10 +11,10 @@ use Illuminate\Support\Facades\Crypt;
 
 class PlayerController extends Controller
 {   
-    public function joinGame(Request $request){
 
-        //Validate Inputs
-        $attributeNames = array(
+    public function joinGame($request){
+         //Validate Inputs
+         $attributeNames = array(
             'input-name' => 'Name',
             'input-password' => 'Password'
         );
@@ -27,7 +27,8 @@ class PlayerController extends Controller
         //Validation END
 
         //Check if game exists
-        $oldGame = Game::find($request->input('game-id'));
+        $gameHash = $request->input('game-hash');
+        $oldGame = Game::where('hash', '=', $gameHash)->first(); 
         if (isset($oldGame->id)){
             //Game exists
 
@@ -53,6 +54,7 @@ class PlayerController extends Controller
                 
                 //Store Necessary details in session
                 session(['gameID' => $oldGame->id]);
+                session(['gameHash' => $gameHash]);
                 session(['userID' => $player->id]);
                 session(['sessionToken' => $player->session]);
                 
@@ -82,6 +84,44 @@ class PlayerController extends Controller
         );
 
         return ($response);
+
+    }
+
+
+    public function checkSessionForJoin(Request $request){
+
+        //Check if a session for this game already exists
+
+        if ($request->session()->has('gameHash')) {
+            $sessionGameHash = session('gameHash');
+            $newGameHash = $request->input('game-hash');
+
+            if($sessionGameHash === $newGameHash){
+                //User is already signed in to this game
+
+                return $this->joinGame($request);
+            } else {
+                //User is signed in to a DIFFERENT game
+
+                return $this->joinGame($request);
+            }
+        } else {
+             //User has no active games.
+             return $this->joinGame($request);
+
+        }
+
+
+
+
+
+
+
+
+
+
+
+       
     }
 
 }
