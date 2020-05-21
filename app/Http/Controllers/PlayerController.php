@@ -11,15 +11,17 @@ use Illuminate\Support\Facades\Crypt;
 
 class PlayerController extends Controller
 {   
-    public function joinGame(Request $request, Store $session){
+    public function joinGame(Request $request){
 
         //Validate Inputs
         $attributeNames = array(
-            'input-name' => 'Name'
+            'input-name' => 'Name',
+            'input-password' => 'Password'
         );
         $customMessages = array();
         $rules = array(
-            'input-name' => 'required|min:3|max:32'
+            'input-name' => 'required|min:3|max:32',
+            'input-password' => 'required'
         );
         $this->validate($request, $rules, $customMessages, $attributeNames);
         //Validation END
@@ -31,7 +33,8 @@ class PlayerController extends Controller
 
             //Check password
             $gamePassword = $oldGame->password;
-            $inputPassword = Hash::make($request->input('input-password'));
+            // $inputPassword = Hash::make($request->input('input-password'));
+            $inputPassword = ($request->input('input-password'));
             if ($inputPassword === $gamePassword) {
                 // The passwords match...
 
@@ -49,10 +52,10 @@ class PlayerController extends Controller
                 //New player created
                 
                 //Store Necessary details in session
-                $session->put('gameID', $oldGame->id);
-                $session->put('userID', $player->id);
-                $session->put('sessionToken', $player->session);
-
+                session(['gameID' => $oldGame->id]);
+                session(['userID' => $player->id]);
+                session(['sessionToken' => $player->session]);
+                
                 if($oldGame->started == 1){
                     //Load game 
                     $result = "game";
