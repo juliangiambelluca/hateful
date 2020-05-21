@@ -66,12 +66,13 @@
 
 
   <body class="text-center">
-    <form id="form-inputs" class="form-signin">
+    <form id="form-inputs" class="form-signin" method="POST" action="{{ route('join-game') }}" >
+    {{ csrf_field() }}
     <h1 class="mb-1" style="font-weight: 800">hateful. [beta]</h1>
     <br>
 	<!-- Wrong inputs alert to be displayed by javascript -->
 	<div id="input-error-alert" class="row" style="display:none">
-		<div class="col-md-6">
+		<div class="col-12">
 			<div class="alert border-left-danger alert-danger fade show" role="alert">
 				<strong>Oops!</strong><br>
 				<span id="input-errors"></span>
@@ -79,7 +80,12 @@
 			</div>
 		</div>
 	</div>
-
+<!-- Padding row -->
+<div class="row">
+	<br>
+	<!-- DEBUGGING RESPONSE -->
+	<div id="debug" style="overflow-wrap: anywhere; "></div>
+</div>
 
       @if(isset($gameID))
         @if($gameID !== "gameNotFound")
@@ -107,7 +113,7 @@
       <label for="input-name" class="sr-only">Please enter your full name.</label>
       <input type="input" name="input-name" id="input-name" class="form-control" placeholder="Enter your full name." required autofocus>
 	  <input type="hidden" id="game-id" name="game-id" value="{{ $gameID ?? '' }}">
-      @csrf
+      
 
 
       <!-- Disclaimers -->
@@ -161,6 +167,7 @@
 <script>
 
 function joinGame(){
+  event.preventDefault()
 
 	//Get Inputs
 	let setInputs = {};
@@ -174,15 +181,15 @@ function joinGame(){
       	return new Promise((resolve, reject) => {
           	$.ajax({
 				url: "{{ route('join-game') }}",
-				type: 'POST',
+        method: 'POST',
 				dataType: "text",
 				data: setInputs,
 				success: function (response) {
-				// $( "#set-debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
+				//$( "#debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
 					resolve(response);
 				},
 				error: function (response) {
-				// $( "#set-debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
+				 //$( "#debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
 					reject(response);
 				},
          	});
