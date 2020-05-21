@@ -69,7 +69,6 @@
     <form id="form-inputs" class="form-signin" method="POST" action="{{ route('join-game') }}" >
     {{ csrf_field() }}
     <h1 class="mb-1" style="font-weight: 800">hateful. [beta]</h1>
-    <br>
 	<!-- Wrong inputs alert to be displayed by javascript -->
 	<div id="input-error-alert" class="row" style="display:none">
 		<div class="col-12">
@@ -82,37 +81,42 @@
 	</div>
 <!-- Padding row -->
 <div class="row">
-	<br>
 	<!-- DEBUGGING RESPONSE -->
 	<div id="debug" style="overflow-wrap: anywhere; "></div>
 </div>
-
-      @if(isset($gameID))
-        @if($gameID !== "gameNotFound")
-          <h3 class="h3 mb-3 font-weight-normal">
-            Join Game.
-          </h3>
-          <!-- Add game password input -->
-          <label for="input-password" class="sr-only">Game Password</label>
-          <input type="password" id="input-password" name="input-password" class="form-control" placeholder="Game Password" required>
-        @else
-          <h5 class="h5 mb-3 font-weight-normal">
+        <!-- DYNAMIC HEADER & TEXT -->
+        @if($response["alreadyPlaying"] === true)
+        <hr class="m-5">
+        <small>You are already playing another game.<br><b class="text-danger">You will be signed out</b> of that one if you join or create a new game </small>     
+        <br>
+        <br>
+        <button class="btn btn-md btn-secondary btn-block" onclick="returnToGame()">Return to current game</button>        
+        <hr class="m-5">
+        @endif
+        @if($response["gameExists"] === true)
+          <h4 class="h4 mb-3 mt-5 font-weight-normal">
+            Join Game
+          </h4>
+          @else
+          <h5 class="h5 mb-3 mt-5 font-weight-normal">
             This Game ID does not exist. <br>
             Why not start a new game?
           </h5>
         @endif
-      @else
-        <h3 class="h3 mb-3 font-weight-normal">
-          Let's get started.
-        </h3>
-      @endif
+
+        <!-- DYNAMIC PASSWORD FIELD IF NECESSARY -->
+        @if($response["gameExists"] === true)
+        <br>
+          <label for="input-password" class="sr-only">Game Password</label>
+          <input type="password" id="input-password" name="input-password" class="form-control" placeholder="Game Password" required>
+       @endif
 
       <br>
       
       <!-- Input name, Hidden Game ID & CSRF -->
       <label for="input-name" class="sr-only">Please enter your full name.</label>
       <input type="input" name="input-name" id="input-name" class="form-control" placeholder="Enter your full name." required autofocus>
-	  <input type="hidden" id="game-id" name="game-id" value="{{ $gameID ?? '' }}">
+	  <input type="hidden" id="game-id" name="game-hash" value="{{ $response['gameHash'] ?? '' }}">
       
 
 
@@ -148,15 +152,25 @@
         </small>
       </div>
       
-      @if(isset($gameID))
-        @if($gameID !== "gameNotFound")
-        <button class="btn btn-lg btn-primary btn-block" onclick="joinGame()">Join Game</button>
-        @else
-        <button class="btn btn-lg btn-primary btn-block" onclick="createGame()">Create New Game</button>
-        @endif
-      @else
-      <button class="btn btn-lg btn-primary btn-block" onclick="createGame()">Create New Game</button>
-      @endif
+
+      <!-- DYNAMIC BUTTON CREATOR -->
+        <?PHP
+        if($response["gameExists"] === true){
+          $buttonText = "Join Game";
+          $buttonClass = "btn btn-lg btn-primary btn-block";
+          $buttonAction = "joinGame()";
+        } else {
+          $buttonText = "Create New Game";
+          $buttonClass = "btn btn-lg btn-success btn-block";
+          $buttonAction = "createGame()";
+        }
+        if($response["alreadyPlaying"]){
+          $buttonText = "Quit & " . $buttonText;
+          $buttonClass = "btn btn-lg btn-warning btn-block";
+        }
+        echo "<button class='" . $buttonClass . "' onclick='" . $buttonAction . "'>" . $buttonText . "</button>";
+        ?>
+
       
       <p class="mt-5 mb-3 text-muted">&copy; Julian Giambelluca</p>
     </form>
@@ -185,11 +199,11 @@ function joinGame(){
 				dataType: "text",
 				data: setInputs,
 				success: function (response) {
-				//$( "#debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
+				$( "#debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
 					resolve(response);
 				},
 				error: function (response) {
-				 //$( "#debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
+				 $( "#debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
 					reject(response);
 				},
          	});
@@ -211,6 +225,10 @@ function joinGame(){
 		case "password":
 			// Oops, Password does not match
 			alert("password");
+      break;
+    case "alreadyPlaying":
+			// Oops, Game not found
+			alert("This will sign you out your urrent game");
 			break;
 		case "gameNotFound":
 			// Oops, Game not found
