@@ -13,6 +13,9 @@
     <!-- Bootstrap core CSS -->
     <link href="{{ URL::to('css/bootstrap.css') }}" rel="stylesheet">
 
+    <script src="{{ URL::to('js/jquery.js') }}"></script>
+
+    <script src="{{ URL::to('js/bootstrap.js') }}"></script>
     <!-- Custom styles for this template -->
 <style>
     html,
@@ -66,30 +69,48 @@
     <form id="form-inputs" class="form-signin">
     <h1 class="mb-1" style="font-weight: 800">hateful. [beta]</h1>
     <br>
+	<!-- Wrong inputs alert to be displayed by javascript -->
+	<div id="input-error-alert" class="row" style="display:none">
+		<div class="col-md-6">
+			<div class="alert border-left-danger alert-danger fade show" role="alert">
+				<strong>Oops!</strong><br>
+				<span id="input-errors"></span>
+			</button>
+			</div>
+		</div>
+	</div>
 
-    @if(isset($gameID))
+
+      @if(isset($gameID))
         @if($gameID !== "gameNotFound")
-        <h3 class="h3 mb-3 font-weight-normal">
-          Join Game.
-        </h3>
-        <label for="inputPassword" class="sr-only">Game Password</label>
-        <input type="password" id="inputPassword" class="form-control" placeholder="Game Password" required>
+          <h3 class="h3 mb-3 font-weight-normal">
+            Join Game.
+          </h3>
+          <!-- Add game password input -->
+          <label for="input-password" class="sr-only">Game Password</label>
+          <input type="password" id="input-password" name="input-password" class="form-control" placeholder="Game Password" required>
         @else
-        <h5 class="h5 mb-3 font-weight-normal">
-        This Game ID does not exist. <br>
-        Why not start a new game?
-        </h5>
+          <h5 class="h5 mb-3 font-weight-normal">
+            This Game ID does not exist. <br>
+            Why not start a new game?
+          </h5>
         @endif
       @else
         <h3 class="h3 mb-3 font-weight-normal">
-        Let's get started.
+          Let's get started.
         </h3>
       @endif
+
       <br>
       
-      <label for="inputName" class="sr-only">Please enter your full name.</label>
-      <input type="input" id="inputName" class="form-control" placeholder="Enter your full name." required autofocus>
-      
+      <!-- Input name, Hidden Game ID & CSRF -->
+      <label for="input-name" class="sr-only">Please enter your full name.</label>
+      <input type="input" name="input-name" id="input-name" class="form-control" placeholder="Enter your full name." required autofocus>
+	  <input type="hidden" id="game-id" name="game-id" value="{{ $gameID ?? '' }}">
+      @csrf
+
+
+      <!-- Disclaimers -->
       <div class="checkbox mb-3">
         <br>
         <small>
@@ -120,6 +141,7 @@
           
         </small>
       </div>
+      
       @if(isset($gameID))
         @if($gameID !== "gameNotFound")
         <button class="btn btn-lg btn-primary btn-block" onclick="joinGame()">Join Game</button>
@@ -139,70 +161,76 @@
 <script>
 
 function joinGame(){
-  function createSet(){
-    
-    //Get Inputs
-    let setInputs = {};
-    //Put all inputs into object
-    $.each($('#form-inputs').serializeArray(), function(i, field) {
-        setInputs[field.name] = field.value;
-    });
-    
-    //Send to server
-    const sendPackage= () => {
-        return new Promise((resolve, reject) => {
-            $.ajax({
-                url: "{{ route('join.game') }}",
-                type: 'POST',
-                dataType: "text",
-                data: setInputs,
-                success: function (response) {
-					// $( "#set-debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
-                    resolve(response);
-                    
-                },
-                error: function (response) {
-					// $( "#set-debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
-                    reject(response);
-                },
-            });
-         });
-    }
-    sendPackage().then(response => {
-        //Get resposnse
-        let setResponseObj = JSON.parse(response);
-        if(setResponseObj.result==="success"){
-            //The inputs were correct & the data saved to the database  
-            //Set current card's ID to enable updating db instead of insert
-            document.getElementById("fc-set-id").value = setResponseObj.setID;
-            $( "#set-title-set" ).html("Edit set");
-            $( "#set-title-cards" ).html(setResponseObj.setTitle);
-            
-			showCardsEditor();
-        } else {
-            //Unexpected response from server
-            $("#input-error-alert").fadeIn(450);
-            $( "#input-errors" ).html("Something went wrong. Please try again. [Details: Unexpected response from server]");
-        }
-    })
-    .catch(response => {
-        //If data validation fails, Laravel responds with status code 422 & Error messages in JSON.
-        if(response.status===422) {
-            let errorMsgsObj = JSON.parse(response.responseText);
-            $("#input-error-alert").fadeIn(450);
-            $( "#input-errors" ).html("");
-            //Extract each error message and append to alert
-            for (const property in errorMsgsObj) {
-                $( "#input-errors" ).append( errorMsgsObj[property] + "<br>");
-            }
-        } else {
-            //Something else went wrong
-            $("#input-error-alert").fadeIn(450);
-            $( "#input-errors" ).html(`Something went wrong. Please try again. [Details: Exception Caught. HTTP status: ${response.status}]`);
-        }
-    });
-}
 
+	//Get Inputs
+	let setInputs = {};
+	//Put all inputs into object
+  	$.each($('#form-inputs').serializeArray(), function(i, field) {
+      setInputs[field.name] = field.value;
+	});
+  
+	//Send to server
+  	const sendPackage= () => {
+      	return new Promise((resolve, reject) => {
+          	$.ajax({
+				url: "{{ route('join-game') }}",
+				type: 'POST',
+				dataType: "text",
+				data: setInputs,
+				success: function (response) {
+				// $( "#set-debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
+					resolve(response);
+				},
+				error: function (response) {
+				// $( "#set-debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
+					reject(response);
+				},
+         	});
+        });
+	}
+	sendPackage().then(response => {
+		//Get resposnse
+		let setResponseObj = JSON.parse(response);
+
+		switch(setResponseObj.result) {
+		case "game":
+			// Success, Load Game!
+			alert("game");
+			break;
+		case "lobby":
+			// Success, Load Lobby!
+			alert("lobby");
+			break;
+		case "password":
+			// Oops, Password does not match
+			alert("password");
+			break;
+		case "gameNotFound":
+			// Oops, Game not found
+			alert("gameNotFound");
+			break;
+		default:
+			// Unexpected repomse
+		}
+	})
+	.catch(response => {
+		//If data validation fails, Laravel responds with status code 422 & Error messages in JSON.
+		if(response.status===422) {
+			let errorMsgsObj = JSON.parse(response.responseText);
+
+			//Fade in alert container 
+			$("#input-error-alert").fadeIn(450);
+			$( "#input-errors" ).html("");
+			//Extract each error message and append to input-errors as text
+			for (const property in errorMsgsObj) {
+				$( "#input-errors" ).append( errorMsgsObj[property] + "<br>");
+			}
+		} else {
+			//Something else went wrong
+			$("#input-error-alert").fadeIn(450);
+			$( "#input-errors" ).html(`Something went wrong. Please try again. [Details: Exception Caught. HTTP status: ${response.status}]`);
+		}
+	});
 }
 
 
