@@ -296,26 +296,14 @@ function createGame(){
 		let setResponseObj = JSON.parse(response);
 
 		switch(setResponseObj.result) {
-		case "game":
-			// Success, Load Game!
-			alert("game");
-			break;
 		case "lobby":
 			// Success, Load Lobby!
 			alert("lobby");
 			break;
-		case "password":
-			// Oops, Password does not match
-			alert("password");
-      break;
     case "alreadyPlaying":
 			// Oops, Game not found
 			alert("This will sign you out your urrent game");
       break;
-		case "gameNotFound":
-			// Oops, Game not found
-			alert("gameNotFound");
-			break;
 		default:
 			// Unexpected repomse
 		}
