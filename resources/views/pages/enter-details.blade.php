@@ -199,11 +199,11 @@ function joinGame(){
 				dataType: "text",
 				data: setInputs,
 				success: function (response) {
-				$( "#debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
+				// $( "#debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
 					resolve(response);
 				},
 				error: function (response) {
-				 $( "#debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
+				//  $( "#debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
 					reject(response);
 				},
          	});
@@ -233,6 +233,11 @@ function joinGame(){
 		case "gameNotFound":
 			// Oops, Game not found
 			alert("gameNotFound");
+      break;
+    case "banned":
+      // Oops, Game not found
+      location.reload();
+
 			break;
 		default:
 			// Unexpected repomse
@@ -306,6 +311,9 @@ function createGame(){
     case "alreadyPlaying":
 			// Oops, Game not found
 			alert("This will sign you out your urrent game");
+      break;
+    case "banned":
+      alert("BANNED");
 			break;
 		case "gameNotFound":
 			// Oops, Game not found
