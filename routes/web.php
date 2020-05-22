@@ -1,5 +1,8 @@
 <?php
 
+
+use Illuminate\Http\Request;
+
 /*
 |--------------------------------------------------------------------------
 | Web Routes
@@ -11,33 +14,33 @@
 |
 */
 
+    Route::get('/', function () {
+        return view('welcome');
+    })->name("homepage");
+    
+    Route::get('/new-game', function () {
+        return view('pages.enter-details');
+    })->name("new-game");
+    
+    Route::get('/play', function () {
+        return view('pages.game');
+    })->name("pages.game");
 
 
+    
+    Route::post('/join-game', [
+        'uses' => 'PlayerController@checkSessionForJoin',
+        'as' => 'join-game'
+    ]);
+    
+    
+    
+
+    
+    //Make sure this stays last as otherwise following route URLs will be treated as game hashes.
+    Route::get('/{gameHash?}', [
+        'uses' => 'GameController@findGame',
+        'as' => 'find-game'
+    ]);
 
 
-Route::get('/', function () {
-    return view('welcome');
-})->name("pages.game");
-
-Route::get('/new-game', function () {
-    return view('pages.enter-details');
-})->name("new-game");
-
-Route::get('/play', function () {
-    return view('pages.game');
-})->name("pages.game");
-
-Route::post('/join-game', [
-    'uses' => 'PlayerController@checkSessionForJoin',
-    'as' => 'join-game'
-]);
-
-
-
-
-
-//Make sure this stays last as otherwise following route URLs will be treated as game hashes.
-Route::get('/{gameHash?}', [
-    'uses' => 'GameController@findGame',
-    'as' => 'find-game'
-]);
