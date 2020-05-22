@@ -312,9 +312,6 @@ function createGame(){
 			// Oops, Game not found
 			alert("This will sign you out your urrent game");
       break;
-    case "banned":
-      alert("BANNED");
-			break;
 		case "gameNotFound":
 			// Oops, Game not found
 			alert("gameNotFound");
