@@ -70,6 +70,29 @@ class PlayerController extends Controller
             } else {
                 //Passwords did not match
                 $result = "password";
+                
+                if ($request->session()->has('loginAttempts')) {
+                    $loginAttempts = session('loginAttempts');
+                    session(['failedLoginAttempts' => $loginAttempts + 1]);
+
+                    if ($loginAttempts === 5){
+                        //Banned for 5 minutes after 5 failed login attempts.
+                        session(['bannedUntil' => time() + 300 ]);
+                    }
+                    if ($loginAttempts === 10){
+                        //Banned for 20 minutes after 10 failed login attempts.
+                        session(['bannedUntil' => time() + 1200 ]);
+                    }
+                    
+                } else {
+                    session(['failedLoginAttempts' => 1]);
+                }
+
+                
+
+
+                session(['loginAttempts' => $request->session()->has('gameHash')]);
+
             }
             //Password match if end
 
