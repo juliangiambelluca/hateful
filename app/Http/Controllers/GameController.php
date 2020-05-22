@@ -11,6 +11,47 @@ use Illuminate\Support\Facades\DB;
 
 class GameController extends Controller
 {   
+
+    private function createGame(Request $request){
+        //Validate Inputs
+        $attributeNames = array(
+            'input-name' => 'Name'
+        );
+        $customMessages = array();
+        $rules = array(
+            'input-name' => 'required|min:3|max:32'
+        );
+        $this->validate($request, $rules, $customMessages, $attributeNames);
+
+        $game = new Game([
+            'started' => 0,
+            'hash' => 0,
+            'password' => 0
+        ]);
+
+        $game->password = $game->newPassword();
+        $game->hash = $game->newHash();
+
+        $encryptedName = Crypt::encryptString($request->input('input-name'));
+        $newSessionToken = Hash::make(rand());
+        $player = new Player([
+            'fullname' => $encryptedName,
+            'game_id' => $game->id,
+            'session' => $newSessionToken,
+            'ismaster' => 0
+        ]);
+
+        //Store Necessary details in session
+        session(['gameID' => $game->id]);
+        session(['ismaster' => 0]);
+        session(['gameHash' => $game->hash]);
+        session(['userID' => $player->id]);
+        session(['sessionToken' => $player->session]);
+        
+        
+    }
+
+
     private function checkGame($gameHash, $alreadyPlaying = false){
         if ($gameHash===-1){
             //Game Hash has not been set (or has been set to -1). Either way, show the Homepage
