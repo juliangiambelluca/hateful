@@ -25,6 +25,10 @@ use Illuminate\Http\Request;
     Route::get('/play', function () {
         return view('pages.game');
     })->name("pages.game");
+    
+    Route::get('/lobby', function () {
+        return view('pages.lobby');
+    })->name("lobby");
 
 
     
