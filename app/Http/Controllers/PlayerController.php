@@ -57,6 +57,8 @@ class PlayerController extends Controller
                 session(['gameHash' => $gameHash]);
                 session(['userID' => $player->id]);
                 session(['sessionToken' => $player->session]);
+                $_SESSION['failedLoginAttempts'] = 0;
+                $_SESSION['bannedUntil'] = 0;
                 
                 if($oldGame->started == 1){
                     //Load game 
@@ -71,28 +73,23 @@ class PlayerController extends Controller
                 //Passwords did not match
                 $result = "password";
                 
-                if ($request->session()->has('loginAttempts')) {
-                    $loginAttempts = session('loginAttempts');
-                    session(['failedLoginAttempts' => $loginAttempts + 1]);
+                //Using php session so web routes has access.
+                if (isset($_SESSION['failedLoginAttempts'])) {
 
-                    if ($loginAttempts === 5){
-                        //Banned for 5 minutes after 5 failed login attempts.
-                        session(['bannedUntil' => time() + 300 ]);
+                    $loginAttempts = $_SESSION['failedLoginAttempts'];
+                    $_SESSION['failedLoginAttempts'] = $loginAttempts + 1;
+
+                    if ($loginAttempts >= 5){
+                        //Banned for 3 minutes after 5 failed login attempts.
+                        //And 5 minutes for every dodgy login after that.
+                        $_SESSION['bannedUntil'] = time() + 120;
+                        $result = "banned";
                     }
-                    if ($loginAttempts === 10){
-                        //Banned for 20 minutes after 10 failed login attempts.
-                        session(['bannedUntil' => time() + 1200 ]);
-                    }
+                
                     
                 } else {
-                    session(['failedLoginAttempts' => 1]);
+                    $_SESSION['failedLoginAttempts'] = 1;
                 }
-
-                
-
-
-                session(['loginAttempts' => $request->session()->has('gameHash')]);
-
             }
             //Password match if end
 
