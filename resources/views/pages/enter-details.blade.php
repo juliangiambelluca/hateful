@@ -97,13 +97,14 @@
           <h4 class="h4 mb-3 mt-5 font-weight-normal">
             Join Game
           </h4>
-          <!-- THIS DOESNT WORK FOR SOME REASON -->
-        @elseif($response["newGame"] === false)
+        @endif
+        @if($response["newGame"] === false)
           <h5 class="h5 mb-3 mt-5 font-weight-normal">
             This Game ID does not exist. <br>
             Why not start a new game?
           </h5>
-        @else
+        @endif
+        @if($response["newGame"] === true)
         <h5 class="h5 mb-3 mt-5 font-weight-normal">
             Let's get started.
           </h5>
@@ -281,7 +282,7 @@ function createGame(){
   	const sendPackage= () => {
       	return new Promise((resolve, reject) => {
           	$.ajax({
-				url: "{{ route('new-game') }}",
+				url: "{{ route('create-game') }}",
         method: 'POST',
 				dataType: "text",
 				data: setInputs,
@@ -302,8 +303,7 @@ function createGame(){
 
 		switch(setResponseObj.result) {
 		case "lobby":
-			// Success, Load Lobby!
-			alert("lobby");
+			window.location.href = "{{ route('lobby') }}";
 			break;
     case "alreadyPlaying":
 			// Oops, Game not found
