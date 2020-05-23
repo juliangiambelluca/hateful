@@ -17,7 +17,7 @@ class checkPlayerSession
     public function handle($request, Closure $next)
     {
         
-        $game = DB::table('games')->where('hash', '=', session('gameHash'))->first(); 
+        $game = DB::table('players')->where('session', '=', session('sessionToken'))->first(); 
         
         if (isset($game)) {
             return $next($request);
