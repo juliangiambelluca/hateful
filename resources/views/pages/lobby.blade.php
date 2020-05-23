@@ -7,7 +7,7 @@
     <meta name="description" content="">
     <meta name="author" content="Mark Otto, Jacob Thornton, and Bootstrap contributors">
     <meta name="generator" content="Jekyll v3.8.6">
-    <title>@yield('title')</title>
+    <title>Game Lobby</title>
 
 
     <link href="{{ URL::to('css/bootstrap.css') }}" rel="stylesheet">
@@ -17,9 +17,9 @@
     <script src="https://kit.fontawesome.com/d5ff43701b.js" crossorigin="anonymous"></script>
 
 
-    <script src="/socket.io/socket.io.js"></script>
-
     <script src="{{ URL::to('js/jquery.js') }}"></script>
+
+    <script src="{{ URL::to('js/socket-io.js') }}"></script>
 
     <script src="{{ URL::to('js/bootstrap.js') }}"></script>
 
@@ -51,13 +51,12 @@
             <div class="row">
               <div class="col-md-6">
               <h5>game link:</h5>
-									<h6>hateful.io/23rde</h6>
+									<h6>hateful.io/{{$response["gameHash"]}}</h6>
                   </div>
               <div class="col-md-6">	
-              <h5>game password:</h5>
-									<h6>fanny-fart</h6>
-                  </div>
-            
+                  <h5>game password:</h5>
+									<h6>{{$response["password"]}}</h6>
+              </div>
             </div>
 									
 								
@@ -100,7 +99,7 @@
   </div>
 </div>
 
-<<script>
+<script>
  
     var socket = io();
     $('form').submit(function(e){
