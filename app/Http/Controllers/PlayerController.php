@@ -57,8 +57,9 @@ class PlayerController extends Controller
                 session(['gameHash' => $gameHash]);
                 session(['userID' => $player->id]);
                 session(['sessionToken' => $player->session]);
-                $_SESSION['failedLoginAttempts'] = 0;
-                $_SESSION['bannedUntil'] = 0;
+                
+                session(['failedLoginAttempts' => 0]);
+                session(['bannedUntil' => 0]);
                 
                 if($oldGame->started == 1){
                     //Load game 
@@ -74,21 +75,19 @@ class PlayerController extends Controller
                 $result = "password";
                 
                 //Using php session so web routes has access.
-                if (isset($_SESSION['failedLoginAttempts'])) {
-
-                    $loginAttempts = $_SESSION['failedLoginAttempts'];
-                    $_SESSION['failedLoginAttempts'] = $loginAttempts + 1;
+                if ($request->session()->has('failedLoginAttempts')) {
+                    
+                    $loginAttempts = session('failedLoginAttempts');                    
+                    session(['failedLoginAttempts' => $loginAttempts + 1]);
 
                     if ($loginAttempts >= 5){
-                        //Banned for 3 minutes after 5 failed login attempts.
-                        //And 5 minutes for every dodgy login after that.
-                        $_SESSION['bannedUntil'] = time() + 120;
+                        //Banned for 2 minutes after 5 failed login attempts.
+                        //+2 minutes for every dodgy login after that.
+                        session(['bannedUntil' => (time() + 120)]);
                         $result = "banned";
                     }
-                
-                    
                 } else {
-                    $_SESSION['failedLoginAttempts'] = 1;
+                    session(['failedLoginAttempts' => 1]);
                 }
             }
             //Password match if end
