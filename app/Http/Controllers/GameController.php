@@ -12,6 +12,65 @@ use Illuminate\Support\Facades\Crypt;
 class GameController extends Controller
 {   
 
+    public function lobbyOrGame(){
+        
+        $gameStarted = session('gameStarted');
+        if($gameStarted === true){
+            return redirect('/game');
+        } else {
+            return redirect('/lobby');
+        }
+    }
+
+    private function testLobbyOrGame(){
+        
+        $oldGame = Game::find(session('gameID'));
+        $gameStarted = $oldGame->started;
+        if($gameStarted === 1){
+            return "game";
+        } else {
+            return "lobby";
+        }
+    }
+
+    public function prepareLobby(){
+        
+        $toLoad = $this->testLobbyOrGame();
+        if ($toLoad === "lobby"){
+            $password = session('gamePassword');
+            $gameHash = session('gameHash');
+            $response = array(
+                "password" => $password,
+                "gameHash" => $gameHash
+            );
+
+            return view('pages.lobby')->with('response', $response);
+
+        } else {
+
+            return redirect('/game');
+
+        }
+    }
+
+    public function prepareGame(){
+        
+        $toLoad = $this->testLobbyOrGame();
+
+        if ($toLoad === "game"){
+
+            //load game    
+            return view('pages.game');
+
+        } else {
+
+            return redirect('/lobby');
+
+        }
+    }
+
+
+
     public function createGame(Request $request){
         //Validate Inputs
         $attributeNames = array(
@@ -39,15 +98,17 @@ class GameController extends Controller
         $player = new Player([
             'fullname' => $encryptedName,
             'session' => $newSessionToken,
-            'ismaster' => 0
+            'ismaster' => 1
         ]);
         //Save new player in relation to this game.
         $game->players()->save($player);
         
         //Store Necessary details in session
         session(['gameID' => $game->id]);
-        session(['ismaster' => 1]);
         session(['gameHash' => $game->hash]);
+        session(['gamePassword' => $game->password]);
+        session(['gameStarted' => false]);
+        session(['ismaster' => true]);
         session(['userID' => $player->id]);
         session(['sessionToken' => $player->session]);
         
@@ -97,8 +158,7 @@ class GameController extends Controller
 
             if($sessionGameID === $newGameID){
                 //User is already signed in to this game
-
-                return "You're already in this game";
+               return $this->lobbyOrGame();
             } else {
                 //User is signed in to a DIFFERENT game
                return $this->checkGame($gameHash, true);
