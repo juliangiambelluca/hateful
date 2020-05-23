@@ -20,13 +20,13 @@ class Game extends Model
 
 
     public function newPassword(){
-        return substr(str_shuffle(md5(rand())), 0, 7);
+        return substr(str_shuffle(md5(rand())), 0, 6);
     }
 
     public function newHash(){
         do {
             //create a random 8 character id
-            $hash = substr(str_shuffle(md5(rand())), 0, 7);
+            $hash = substr(str_shuffle(md5(rand())), 0, 6);
             //make sure no other game in the database has it.
             $game = DB::table('games')->where('hash', '=', $hash )->first(); 
         } while (isset($game->id));
