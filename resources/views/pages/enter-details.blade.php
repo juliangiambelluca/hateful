@@ -90,21 +90,19 @@
         <small>You are already playing another game.<br><b class="text-danger">You will be signed out</b> of that one if you join or create a new game </small>     
         <br>
         <br>
-        <button class="btn btn-md btn-secondary btn-block" onclick="returnToGame()">Return to current game</button>        
+        <a class="btn btn-md btn-secondary btn-block" href="{{ route('lobby-or-game') }}">Return to current game</a>        
         <hr class="m-5">
         @endif
         @if($response["gameExists"] === true)
           <h4 class="h4 mb-3 mt-5 font-weight-normal">
             Join Game
           </h4>
-        @endif
-        @if($response["newGame"] === false)
+        @elseif($response["newGame"] === false)
           <h5 class="h5 mb-3 mt-5 font-weight-normal">
             This Game ID does not exist. <br>
             Why not start a new game?
           </h5>
-        @endif
-        @if($response["newGame"] === true)
+        @else
         <h5 class="h5 mb-3 mt-5 font-weight-normal">
             Let's get started.
           </h5>
@@ -205,52 +203,51 @@ function joinGame(){
 				dataType: "text",
 				data: setInputs,
 				success: function (response) {
-				// $( "#debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
+				$( "#debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
 					resolve(response);
 				},
 				error: function (response) {
-				//  $( "#debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
+				 $( "#debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
 					reject(response);
 				},
          	});
         });
 	}
 	sendPackage().then(response => {
+    
+			$("#input-error-alert").fadeOut(50);
 		//Get resposnse
 		let setResponseObj = JSON.parse(response);
 
 		switch(setResponseObj.result) {
-		case "game":
-			// Success, Load Game!
-			alert("game");
-			break;
-		case "lobby":
-			// Success, Load Lobby!
-			alert("lobby");
+		case "canaccess":
+			window.location.href = "{{ route('lobby-or-game') }}";
 			break;
 		case "password":
-			// Oops, Password does not match
-			alert("password");
+      //Password incorrect
+			$("#input-error-alert").fadeIn(450);
+			$( "#input-errors" ).html(`Password is invalid. You've got ${ 5 - setResponseObj.failedLoginAttempts } attempt(s) left before you get locked out for 2 minutes.`);
       break;
-    case "alreadyPlaying":
-			// Oops, Game not found
-			alert("This will sign you out your urrent game");
-			break;
 		case "gameNotFound":
-			// Oops, Game not found
-			alert("gameNotFound");
+      //Game no longer exists
+      $("#input-error-alert").fadeIn(450);
+			$( "#input-errors" ).html(`We can't find that game. Make sure link is correct and that game hasn't ended.`);
       break;
     case "banned":
-      // Oops, Game not found
+      //Suspicious behaviour
       location.reload();
-
 			break;
-		default:
-			// Unexpected repomse
+    default:  
+     //Unexpected response
+      $("#input-error-alert").fadeIn(450);
+			$( "#input-errors" ).html(`Something went wrong. Please refresh the page.`);
 		}
 	})
 	.catch(response => {
-		//If data validation fails, Laravel responds with status code 422 & Error messages in JSON.
+    //If data validation fails, Laravel responds with status code 422 & Error messages in JSON.
+    if(response.status===404) {
+      location.reload();
+		}
 		if(response.status===422) {
 			let errorMsgsObj = JSON.parse(response.responseText);
 
@@ -264,7 +261,7 @@ function joinGame(){
 		} else {
 			//Something else went wrong
 			$("#input-error-alert").fadeIn(450);
-			$( "#input-errors" ).html(`Something went wrong. Please try again. [Details: Exception Caught. HTTP status: ${response.status}]`);
+			$( "#input-errors" ).html(`Something went wrong. Please refresh the page and try again. [Details: Exception Caught. HTTP status: ${response.status}]`);
 		}
 	});
 }
@@ -305,16 +302,17 @@ function createGame(){
 		case "lobby":
 			window.location.href = "{{ route('lobby') }}";
 			break;
-    case "alreadyPlaying":
-			// Oops, Game not found
-			alert("This will sign you out your urrent game");
-      break;
-		default:
-			// Unexpected repomse
+    default:  
+     //Unexpected response
+      $("#input-error-alert").fadeIn(450);
+			$( "#input-errors" ).html(`Something went wrong. Please refresh the page.`);
 		}
 	})
 	.catch(response => {
-		//If data validation fails, Laravel responds with status code 422 & Error messages in JSON.
+    if(response.status===404) {
+      location.reload();
+		}
+    //If data validation fails, Laravel responds with status code 422 & Error messages in JSON.
 		if(response.status===422) {
 			let errorMsgsObj = JSON.parse(response.responseText);
 
@@ -328,7 +326,7 @@ function createGame(){
 		} else {
 			//Something else went wrong
 			$("#input-error-alert").fadeIn(450);
-			$( "#input-errors" ).html(`Something went wrong. Please try again. [Details: Exception Caught. HTTP status: ${response.status}]`);
+			$( "#input-errors" ).html(`Something went wrong. Please refresh the page and try again. [Details: Exception Caught. HTTP status: ${response.status}]`);
 		}
 	});
 }
