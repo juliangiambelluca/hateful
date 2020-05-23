@@ -6,20 +6,13 @@ use App\Game;
 use App\Player;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-// use Illuminate\Support\Facades\Hash;
-// use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Crypt;
 
 class GameController extends Controller
 {   
-    private function loadNewGame(){
-        $response = array(
-            "newGame" => true,
-        );
-        return view('pages.enter-details')->with('response', $response);
-    }
 
-
-    private function createGame(Request $request){
+    public function createGame(Request $request){
         //Validate Inputs
         $attributeNames = array(
             'input-name' => 'Name'
@@ -38,39 +31,48 @@ class GameController extends Controller
 
         $game->password = $game->newPassword();
         $game->hash = $game->newHash();
+        
+        $game->save();
 
         $encryptedName = Crypt::encryptString($request->input('input-name'));
         $newSessionToken = Hash::make(rand());
         $player = new Player([
             'fullname' => $encryptedName,
-            'game_id' => $game->id,
             'session' => $newSessionToken,
             'ismaster' => 0
         ]);
-
+        //Save new player in relation to this game.
+        $game->players()->save($player);
+        
         //Store Necessary details in session
         session(['gameID' => $game->id]);
-        session(['ismaster' => 0]);
+        session(['ismaster' => 1]);
         session(['gameHash' => $game->hash]);
         session(['userID' => $player->id]);
         session(['sessionToken' => $player->session]);
         
-        
+        $response = array(
+            "result" => "lobby"
+        );
+
+        return ($response);
+
+
     }
 
 
     private function checkGame($gameHash, $alreadyPlaying = false){
-        if ($gameHash===-1){
-            //Game Hash has not been set (or has been set to -1). Either way, show the Homepage
-            return view('welcome');
-        } 
-
         $response = array(
             "gameHash" => null,
             "alreadyPlaying" => false,
             "gameExists" => false,
             "newGame" => false,
         );
+       
+        if ($gameHash===-1){
+            //Game Hash has not been set (or has been set to -1).
+            $response["newGame"] = true;
+        } 
 
         $game = Game::where('hash', '=', $gameHash)->first(); 
             
