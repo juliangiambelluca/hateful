@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Http\Middleware;
+use Illuminate\Session\Middleware\StartSession;
 use Closure;
 
 class checkBanned
@@ -14,19 +15,15 @@ class checkBanned
      */
     public function handle($request, Closure $next)
     {
-        session_start();
-        if (isset($_SESSION['bannedUntil'])) {
-            $bannedUntil = $_SESSION['bannedUntil'];
+        
+        if ($request->session()->has('bannedUntil')) {
+            $bannedUntil = session('bannedUntil');
             //If they are still banned
             if ($bannedUntil > time()){
 
                 abort(404, 'TOO_MANY_LOGIN_ATTEMPTS_GET_YOU_BANNED');
             
-            } else if ($bannedUntil < time() ){
-                //Give them another chance before locking them out again
-                unset($_SESSION['bannedUntil']) ;
             } 
-           
         }
         return $next($request);
         
