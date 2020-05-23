@@ -11,6 +11,13 @@ use Illuminate\Support\Facades\DB;
 
 class GameController extends Controller
 {   
+    private function loadNewGame(){
+        $response = array(
+            "newGame" => true,
+        );
+        return view('pages.enter-details')->with('response', $response);
+    }
+
 
     private function createGame(Request $request){
         //Validate Inputs
@@ -62,6 +69,7 @@ class GameController extends Controller
             "gameHash" => null,
             "alreadyPlaying" => false,
             "gameExists" => false,
+            "newGame" => false,
         );
 
         $game = Game::where('hash', '=', $gameHash)->first(); 
