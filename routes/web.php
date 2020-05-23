@@ -19,9 +19,14 @@ use Illuminate\Http\Request;
     })->name("homepage");
     
 
-    Route::post('/new-game', [
-        'uses' => 'GameController@loadNewGame',
+    Route::get('/new-game', [
+        'uses' => 'GameController@findGame',
         'as' => 'new-game'
+    ]);
+
+    Route::post('/create-game', [
+        'uses' => 'GameController@createGame',
+        'as' => 'create-game'
     ]);
     
 
@@ -29,10 +34,11 @@ use Illuminate\Http\Request;
         Route::get('/play', function () {
             return view('pages.game');
         })->name("pages.game");
-        
-        Route::get('/lobby', function () {
-            return view('pages.lobby');
-        })->name("lobby");
+
+        Route::post('/lobby', [
+            'uses' => 'GameController@prepareLobby',
+            'as' => 'lobby'
+        ]);
     });
    
 
