@@ -97,10 +97,15 @@
           <h4 class="h4 mb-3 mt-5 font-weight-normal">
             Join Game
           </h4>
-          @else
+          <!-- THIS DOESNT WORK FOR SOME REASON -->
+        @elseif($response["newGame"] === false)
           <h5 class="h5 mb-3 mt-5 font-weight-normal">
             This Game ID does not exist. <br>
             Why not start a new game?
+          </h5>
+        @else
+        <h5 class="h5 mb-3 mt-5 font-weight-normal">
+            Let's get started.
           </h5>
         @endif
 
