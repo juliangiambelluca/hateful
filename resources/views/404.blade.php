@@ -75,9 +75,9 @@
           <h4 class="h4 mb-3 mt-5 font-weight-normal">
            You are temporarily banned
           </h4>
-          <small>You may return and try again in {{ $_SESSION['bannedUntil'] - time()  }} seconds.</small>
+          <small>You may return and try again in {{ session('bannedUntil') - time()  }} seconds.</small>
           <br>
-          <small>You failed {{ $_SESSION['failedLoginAttempts']-1 }} login attempts.</small>
+          <small>You failed {{ session('failedLoginAttempts')-1 }} login attempts.</small>
           @else
           <h4 class="h4 mb-3 mt-5 font-weight-normal">
            Well done mate!<br>
