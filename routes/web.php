@@ -1,6 +1,6 @@
 <?php
 
-
+use App\Http\Middleware\checkPlayerSession;
 use Illuminate\Http\Request;
 
 /*
@@ -18,18 +18,23 @@ use Illuminate\Http\Request;
         return view('welcome');
     })->name("homepage");
     
-    Route::get('/new-game', function () {
-        return view('pages.enter-details');
-    })->name("new-game");
-    
-    Route::get('/play', function () {
-        return view('pages.game');
-    })->name("pages.game");
-    
-    Route::get('/lobby', function () {
-        return view('pages.lobby');
-    })->name("lobby");
 
+    Route::post('/new-game', [
+        'uses' => 'GameController@loadNewGame',
+        'as' => 'new-game'
+    ]);
+    
+
+    Route::middleware([checkPlayerSession::class])->group(function () {
+        Route::get('/play', function () {
+            return view('pages.game');
+        })->name("pages.game");
+        
+        Route::get('/lobby', function () {
+            return view('pages.lobby');
+        })->name("lobby");
+    });
+   
 
     
     Route::post('/join-game', [
