@@ -21,15 +21,8 @@ class checkPlayerSession
         
         if (isset($game)) {
             return $next($request);
-            
         } else {
-            $response = array(
-                "gameHash" => null,
-                "alreadyPlaying" => false,
-                "gameExists" => false,
-            );
             return redirect('/new-game');
-        
         }
 
     }
