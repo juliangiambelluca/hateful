@@ -31,20 +31,25 @@ use Illuminate\Http\Request;
     
 
     Route::middleware([checkPlayerSession::class])->group(function () {
-        Route::get('/play', function () {
-            return view('pages.game');
-        })->name("pages.game");
 
-        Route::post('/lobby', [
+        Route::get('/game', [
+            'uses' => 'GameController@prepareGame',
+            'as' => 'game'
+        ]);
+        Route::get('/lobby', [
             'uses' => 'GameController@prepareLobby',
             'as' => 'lobby'
+        ]);
+        Route::get('/lobby-or-game', [
+            'uses' => 'GameController@lobbyOrGame',
+            'as' => 'lobby-or-game'
         ]);
     });
    
 
     
     Route::post('/join-game', [
-        'uses' => 'PlayerController@checkSessionForJoin',
+        'uses' => 'PlayerController@joinGame',
         'as' => 'join-game'
     ]);
     
