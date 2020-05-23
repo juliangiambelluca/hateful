@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\Crypt;
 class PlayerController extends Controller
 {   
 
-    public function joinGame($request){
+    public function joinGame(Request $request){
          //Validate Inputs
          $attributeNames = array(
             'input-name' => 'Name',
@@ -46,7 +46,8 @@ class PlayerController extends Controller
                 $player = new Player([
                     'fullname' => $encryptedName,
                     'game_id' => $oldGame->id,
-                    'session' => $newSessionToken
+                    'session' => $newSessionToken,
+                    'ismaster' => 0
                 ]);
                 //Save new player in relation to this game.
                 $oldGame->players()->save($player);
@@ -55,30 +56,24 @@ class PlayerController extends Controller
                 //Store Necessary details in session
                 session(['gameID' => $oldGame->id]);
                 session(['gameHash' => $gameHash]);
+                session(['gamePassword' => $oldGame->password]);
                 session(['userID' => $player->id]);
                 session(['sessionToken' => $player->session]);
                 
                 session(['failedLoginAttempts' => 0]);
                 session(['bannedUntil' => 0]);
                 
-                if($oldGame->started == 1){
-                    //Load game 
-                    $result = "game";
-                } else {
-                    //Load lobby
-                    $result = "lobby";
-                }
-                //Game started if end
+                $result = "can-access";
 
             } else {
                 //Passwords did not match
                 $result = "password";
-                
+
                 //Using php session so web routes has access.
                 if ($request->session()->has('failedLoginAttempts')) {
                     
-                    $loginAttempts = session('failedLoginAttempts');                    
-                    session(['failedLoginAttempts' => $loginAttempts + 1]);
+                    $loginAttempts = session('failedLoginAttempts') + 1;                    
+                    session(['failedLoginAttempts' => $loginAttempts]);
 
                     if ($loginAttempts >= 5){
                         //Banned for 2 minutes after 5 failed login attempts.
@@ -88,6 +83,7 @@ class PlayerController extends Controller
                     }
                 } else {
                     session(['failedLoginAttempts' => 1]);
+                    $loginAttempts = 1;
                 }
             }
             //Password match if end
@@ -99,7 +95,8 @@ class PlayerController extends Controller
         //Game exist if end
 
         $response = array(
-            "result" => $result
+            "result" => $result,
+            "failedLoginAttempts" => $loginAttempts
         );
 
         return ($response);
@@ -107,40 +104,31 @@ class PlayerController extends Controller
     }
 
 
-    public function checkSessionForJoin(Request $request){
+    // public function checkSessionForJoin(Request $request){
 
-        //Check if a session for this game already exists
+    //     //Check if a session for this game already exists
 
-        if ($request->session()->has('gameHash')) {
-            $sessionGameHash = session('gameHash');
-            $newGameHash = $request->input('game-hash');
+    //     if ($request->session()->has('gameHash')) {
+    //         $sessionGameHash = session('gameHash');
+    //         $newGameHash = $request->input('game-hash');
 
-            if($sessionGameHash === $newGameHash){
-                //User is already signed in to this game
+    //         if($sessionGameHash === $newGameHash){
+    //             //User is already signed in to this game
 
-                return $this->joinGame($request);
-            } else {
-                //User is signed in to a DIFFERENT game
+    //             $response = array(
+    //                 "result" => "alreadyIn"
+    //             );
+    //             return ($response);
+    //         } else {
+    //             //User is signed in to a DIFFERENT game
 
-                return $this->joinGame($request);
-            }
-        } else {
-             //User has no active games.
-             return $this->joinGame($request);
+    //             return $this->joinGame($request);
+    //         }
+    //     } else {
+    //          //User has no active games.
+    //          return $this->joinGame($request);
 
-        }
-
-
-
-
-
-
-
-
-
-
-
-       
-    }
+    //     }
+    // }
 
 }
