@@ -111,16 +111,24 @@
         //on page load
         $(function () {
 
-          var socket = io('http://127.0.0.1:3000');
-          let lobby_id = '123';
+          const socket = io('http://127.0.0.1:3000');
+
+          //User inputs in session have already been sanitise. @json laravel blade directive not working for me.
+          const clientSession = '{!! json_encode(session()->all()) !!}';
 
           //connect to the ticket system
-          socket.emit('join', lobby_id);
+          socket.emit('join', clientSession );
 
           // user is connected
           socket.on('user_join', function (data) {
            console.log(data);
           });
+
+          socket.on('playersInLobby', function (data) {
+           console.log(data);
+          });
+
+
         });
 
         
