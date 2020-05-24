@@ -5,8 +5,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <meta name="description" content="">
-    <meta name="author" content="Mark Otto, Jacob Thornton, and Bootstrap contributors">
-    <meta name="generator" content="Jekyll v3.8.6">
+    <meta name="author" content="">
+    <meta name="generator" content="">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>Game Lobby</title>
 
 
@@ -20,6 +21,8 @@
     <script src="{{ URL::to('js/jquery.js') }}"></script>
 
     <script src="{{ URL::to('js/socket-io.js') }}"></script>
+
+    
 
     <script src="{{ URL::to('js/bootstrap.js') }}"></script>
 
@@ -101,16 +104,19 @@
 
 <script>
  
-    var socket = io();
-    $('form').submit(function(e){
-      e.preventDefault(); // prevents page reloading
-      socket.emit('chat message', $('#m').val());
-      $('#m').val('');
-      return false;
-    });
-    socket.on('chat message', function(msg){
-      $('#messages').append($('<li>').text(msg));
-    });
+ import Echo from "laravel-echo"
+
+window.io = require('socket.io-client');
+
+window.Echo = new Echo({
+    broadcaster: 'socket.io',
+    host: window.location.hostname + ':6001'
+});
+
+
+var socket = io();
+
+
     </script>
   </div>
 </div>
