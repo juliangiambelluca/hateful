@@ -82,6 +82,9 @@ class GameController extends Controller
         );
         $this->validate($request, $rules, $customMessages, $attributeNames);
 
+        //sanitise input
+        $inputFullname = htmlspecialchars($request->input('input-name'));
+
         $game = new Game([
             'started' => 0,
             'hash' => 0,
@@ -93,10 +96,9 @@ class GameController extends Controller
         
         $game->save();
 
-        $encryptedName = Crypt::encryptString($request->input('input-name'));
         $newSessionToken = Hash::make(rand());
         $player = new Player([
-            'fullname' => $encryptedName,
+            'fullname' => $inputFullname,
             'session' => $newSessionToken,
             'ismaster' => 1
         ]);
@@ -110,6 +112,7 @@ class GameController extends Controller
         session(['gameStarted' => false]);
         session(['ismaster' => true]);
         session(['userID' => $player->id]);
+        session(['fullname' => $player->fullname]);
         session(['sessionToken' => $player->session]);
         
         $response = array(
