@@ -11,5 +11,6 @@ let mix = require('laravel-mix');
  |
  */
 
-mix.js('resources/assets/js/app.js', 'public/js')
-   .sass('resources/assets/sass/app.scss', 'public/css');
+ mix.js('resources/assets/js/app.js', 'public/js')
+ .sass('resources/assets/sass/app.scss', 'public/css')
+ .copy('node_modules/socket.io-client/dist/socket.io.js', 'public/js/socket.io.js');
