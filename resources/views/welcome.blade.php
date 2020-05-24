@@ -7,7 +7,11 @@ hateful.
 @section('content')
 
 
-    <script type="text/javascript" src="https://gc.kis.v2.scr.kaspersky-labs.com/FD126C42-EBFA-4E12-B309-BB3FDD723AC1/main.js?attr=ixPswq-A7-X5Cy07Ba62Ag8c0UY1BIJcrr0aL4etBDXDypjADh5875IhCtGYDPUEVAmNpOP2uKPbTzCspn3273MswVWmJN2FplXzOKMBTY8" charset="UTF-8"></script><style>
+    <style>
+      .row {
+        margin: 0!important;
+      }
+
       .bd-placeholder-img {
         font-size: 1.125rem;
         text-anchor: middle;
@@ -46,12 +50,14 @@ hateful.
 
 <div id="header-bg" class="row">
 <div class="position-relative overflow-hidden">
-  <div class="col-md-6 p-lg-5 mx-auto my-5">
-    <h1 class="display-4 font-weight-normal text-white" style="font-size: 7rem;">hateful.</h1>
-    <p class="lead font-weight-normal text-white">
-    a familiar game with no censorship. release your inner demons. get nasty.
-    </p>
-    <a class="btn btn-outline-secondary" href="{{ route('new-game') }}">play the game</a>
+  <div class="col-md-6 p-lg-5 my-5 mx-5">
+    <h1 class="text-white" style="font-size: 7rem; font-weight:800;">hateful.</h1>
+    <p class="lead text-white my-4 ml-1">
+    A blatent rip-off of <a href="http://www.cardsagainsthumanity.com" class="font-weight-normal"><u>Cards Against Humanity</u></a>, 
+    but you can write your own cards and roast your friends. 
+   <div class="my-2">
+     <a class="btn btn-lg btn-success py-2 px-4" style="font-weight: 400;" href="{{ route('new-game') }}">Play the game</a>
+   </div> 
   </div>
   <div class="col-md-6">
   </div>
