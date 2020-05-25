@@ -12,6 +12,23 @@ use Illuminate\Support\Facades\Crypt;
 class PlayerController extends Controller
 {   
 
+    public function updateHost($newHostID){
+        $newHost = Player::find($newHostID);
+        $players = Player::where('game_id', '=', session('gameID'))->get(); 
+        
+        //Ensure nobody is host.
+        foreach ($players as $player) {
+            $host->ismaster=0;
+            $host->save();
+        }
+        
+            $newHost->ismaster=1; 
+            $newHost->save();
+        
+        return redirect('/lobby-or-game');
+    }
+
+
     public function joinGame(Request $request){
          //Validate Inputs
          $attributeNames = array(
@@ -61,6 +78,7 @@ class PlayerController extends Controller
                 session(['gamePassword' => $oldGame->password]);
                 session(['fullname' => $player->fullname]);
                 session(['userID' => $player->id]);
+                session(['isMaster' => false]);
                 session(['sessionToken' => $player->session]);
                 session(['failedLoginAttempts' => 0]);
                 session(['bannedUntil' => 0]);
