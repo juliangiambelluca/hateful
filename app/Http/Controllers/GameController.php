@@ -110,7 +110,7 @@ class GameController extends Controller
         session(['gameHash' => $game->hash]);
         session(['gamePassword' => $game->password]);
         session(['gameStarted' => false]);
-        session(['ismaster' => true]);
+        session(['isMaster' => true]);
         session(['userID' => $player->id]);
         session(['fullname' => $player->fullname]);
         session(['sessionToken' => $player->session]);
