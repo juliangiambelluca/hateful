@@ -46,7 +46,7 @@
                   <div class="row">
                     <div class="col-md-6">
                       <h5>game link:</h5>
-                      <h6>hateful.io/{{$response["gameHash"]}}</h6>
+                      <h6>hateful/{{$response["gameHash"]}}</h6>
                     </div>
                     <div class="col-md-6">	
                       <h5>game password:</h5>
@@ -56,47 +56,44 @@
 
 
                 </div>
+				
 
-                <button class="btn btn-lg m-4 pt-3 pb-3 btn-secondary disabled btn-block" style="min-width: 50%; max-width: 83%;" onclick="returnToGame()">Waiting for players<br><small>[min. 3 to start]</small></button>        
-              </div>
+				<div class="ml-4" id="start-game">
+				
+				</div>
+
+     
+              
+			  
+			  </div>
               <div class="col-md-6">
-
+			  <div class="row">
+	<!-- DEBUGGING RESPONSE -->
+	<div id="debug" style="overflow-wrap: anywhere; "></div>
+</div>
               </div>
 
             </div>
           </div>      
           <!-- End Game table -->
 
-          <div id="my-cards">
-            @include('partials.name-cards')
+          <div id="name-cards-container">
+            <div class="row m-3">
+              <div class="col-12 p-0">
+                <div id="name-cards" class="x-scrolling-wrapper">
+                </div>  
+              </div>  
+            </div>  
           </div>
 
         </main>
       </div>
     </div>
-
-
-
-
-    <!-- Modal -->
-    <div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
-      <div class="modal-dialog modal-dialog-centered"  role="document" id="write-answer-modal-dialog">
-        <div class="modal-content" id="write-answer-modal-content">
-          <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-            <span aria-hidden="true">&times;</span>
-          </button>
-
-          <div class="modal-body">
-            <div class="form-group" style="height: 100% !Important">
-              <textarea class="form-control write-answer-input card-text-answer" placeholder="write something witty..." id="write-answer-input"></textarea>
-            </div>
-          </div>
-
-        </div>
-      </div>
-    </div>
-
-
+<!-- 
+<form  style="display: none" id="new-host-inputs" method="POST" action="">
+{{ csrf_field() }}
+<input type="hidden" id="new-host" name="new-host" value="{{ session('userID') }}">
+</form> -->
 
     <script src="{{ URL::to('js/jquery.js') }}"></script>
 
@@ -110,34 +107,118 @@
     <script>
         //on page load
         $(function () {
-
           const socket = io('http://127.0.0.1:3000');
-
-          //User inputs in session have already been sanitise. @json laravel blade directive not working for me.
+          //User inputs in session have already been sanitised. @json laravel blade directive not working for me.
           const clientSession = '{!! json_encode(session()->all()) !!}';
-
-          //connect to the ticket system
+          //join this room
           socket.emit('join', clientSession );
-
           // user is connected
           socket.on('user_join', function (data) {
            console.log(data);
+		  });
+
+		  socket.on('newHost', function (newHost = "default") {
+			if(newHost === {{session('userID')}}){
+				updateHost();
+			}
+			location.reload();
+		  });
+
+
+		  //Receive players in room
+          socket.on('playersInLobby', function (players) {
+           //Receiving array of names.
+            displayNameCards(players);
           });
 
-          socket.on('playersInLobby', function (data) {
-           console.log(data);
-          });
+		  socket.on('enableGameStart', function () {
+			@if(session('isMaster') === true)
+				$("#start-game").html(`
+				<button id="start-game" class="btn btn-lg mt-4 py-3 btn-success" 
+				style="min-width: 50%; max-width: 83%;" onclick="startGame()">
+				Start Game.</button>   
+				`);
+			@else
+				$("#start-game").html(`
+				<div class="alert alert-primary alert-dismissible fade show" role="alert">
+					<strong>Waiting for host to start game</strong>. Tell them to hurry up.
+					<button type="button" class="close" data-dismiss="alert" aria-label="Close">
+						<span aria-hidden="true">&times;</span>
+					</button>
+				</div>
+				`);
+			@endif
+		  });
+		  socket.on('disableGameStart', function () {
+			@if(session('isMaster') === true)
+				$("#start-game").html(`
+				<div class="alert alert-dark alert-dismissible fade show" role="alert">
+					<strong>Waiting for at least 3 players</strong>. You won't be able to start the game until then.
+					<button type="button" class="close" data-dismiss="alert" aria-label="Close">
+						<span aria-hidden="true">&times;</span>
+					</button>
+				</div>
+				`);
+			@else
+			$("#start-game").html(`
+				<div class="alert alert-dark alert-dismissible fade show" role="alert">
+					<strong>Waiting for at least 3 players</strong>. Hope you have friends.
+					<button type="button" class="close" data-dismiss="alert" aria-label="Close">
+						<span aria-hidden="true">&times;</span>
+					</button>
+				</div>
+				`);
+			@endif
+		  });
+		//   socket.on('playerDisconnect', function (playerID) {
+		// 	deleteNameCard(playerID);
+        //   });
+
+		});
+		
 
 
-        });
+function updateHost(){
+	window.location.href = "http://hateful/uh/{{ session('userID') }}";
+}
 
-        
+	
+        function displayNameCards(players){
+			let render = "";
+
+			for(i=0;i<players[0].length;i++){
+				id = players[0][i];
+				fullname = players[1][i];
+
+				// if(!(document.getElementById("player-" + id))){
+				nameCardsTemplate = `
+				<div id="player-${id}" class="card game-card answer-card  ">
+				<div class="card-body game-card-body">
+				<div class="card-text-answer">
+				${fullname}
+				</div>
+				</div>
+				</div> 
+				`;
+				render += nameCardsTemplate;
+				// $("#name-cards").append(nameCardsTemplate);
+				// }           
+			}
+
+			$("#name-cards").html(render);
+		}
+		
+		// function deleteNameCard (playerID){
+        // //   $("#player-"+playerID).remove();
+        // }
+
+
 
       </script>
 
 
     </body>
-    </html>
+</html>
 
 
 
