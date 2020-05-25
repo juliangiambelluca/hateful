@@ -48,7 +48,7 @@ hateful.
   </div>
 </nav>
 
-<div id="header-bg" class="row">
+<div id="header-bg" class="m-5 row">
 <div class="position-relative overflow-hidden">
   <div class="col-md-6 p-lg-5 my-5 mx-5">
     <h1 class="text-white" style="font-size: 7rem; font-weight:800;">hateful.</h1>
@@ -58,6 +58,8 @@ hateful.
    <div class="my-2">
      <a class="btn btn-lg btn-success py-2 px-4" style="font-weight: 400;" href="{{ route('new-game') }}">Play the game</a>
    </div> 
+   <small class="text-white font-weight-light">Nothing about this website is endorsed by Cards Against Humanity. It is distributed under a Creative Commons - Attribution - Noncommercial - Share Alike license. It kind of means I can their jokes if I give them credit.</small>
+   <div></div>
   </div>
   <div class="col-md-6">
   </div>
