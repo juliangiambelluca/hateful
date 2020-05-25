@@ -53,7 +53,11 @@ use Illuminate\Http\Request;
         'as' => 'join-game'
     ]);
     
-    
+
+    Route::get('/uh/{newHost}', [
+        'uses' => 'PlayerController@updateHost',
+        'as' => 'update-host'
+    ]);
     
 
     
