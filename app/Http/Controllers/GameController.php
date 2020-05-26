@@ -100,6 +100,8 @@ class GameController extends Controller
         $player = new Player([
             'fullname' => $inputFullname,
             'session' => $newSessionToken,
+            'connected' => false,
+
             'ismaster' => 1
         ]);
         //Save new player in relation to this game.
