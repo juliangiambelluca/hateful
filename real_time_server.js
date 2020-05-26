@@ -1,3 +1,62 @@
+const mysql = require('mysql');
+
+const pool = mysql.createPool({
+    connectionLimit : 100, //important
+    host     : '127.0.0.1',
+    database : 'hateful',
+    user     : 'root',
+    password : 'rrfKa-dd6-sCX7F',
+    debug    :  false
+});
+
+// query rows in the table
+async function mysqlSelect(select, from, where, equals) {
+    let selectQuery = 'SELECT ?? FROM ?? WHERE ?? = ?';    
+    let query = mysql.format(selectQuery,[select,from,where,equals]);
+    return new Promise( (resolve) => {
+        pool.query(query, (error, data) => {
+			if(error) {
+				console.error(error);
+				return false;
+			}
+              resolve (data);
+            });
+        }); 
+	} 
+
+async function mysqlCustom(customQuery = "", values = []) {
+	let query = mysql.format(customQuery,values);
+	return new Promise( (resolve) => {
+		pool.query(query, (error, data) => {
+			if(error) {
+				console.error(error);
+				return false;
+			}
+				resolve (data);
+			});
+		}); 
+	} 
+
+async function mysqlUpdate(update, set, setEquals, where, equals) {
+	let selectQuery = 'UPDATE ?? SET ?? = ? WHERE ?? = ?';    
+	let query = mysql.format(selectQuery,[update,set,setEquals,where,equals]);
+	return new Promise( (resolve) => {
+		pool.query(query, (error, data) => {
+			if(error) {
+				console.error(error);
+				return false;
+			}
+				resolve (data);
+			});
+		}); 
+	} 
+
+
+
+
+/////////////////////////
+
+
 let app = require('express')();
 let http = require('http').createServer(app);
 let io = require('socket.io')(http);
@@ -18,37 +77,55 @@ let notify = io.on('connection', (socket) => {
 	let isMaster = "";
 	let clientSession = [];
 	//join users own 'room'
-	socket.on('join', function (preClientSession) {
-		preClientSession = JSON.parse(preClientSession);
-		socket.join(preClientSession.gameHash);
-		clientSession = preClientSession;
-		userID = clientSession.userID;
-		gameHash = clientSession.gameHash;
-		isMaster = clientSession.isMaster;
+	socket.on('join', function (dirtyUserID) {
+		//Sanitise Input
+		userID = dirtyUserID.replace(/[^0-9]/g, '');
+		//if userID is more than 9.9... Billion, it's defintely invalid.
+		if(userID.length > 10){userID = null};
+		(async () => {
+			gameID = await mysqlSelect("game_id", "players", "id", userID);
+			//Returns array of objects
+			//First result, attribute game_id
+			gameID = gameID[0].game_id;
+			if(gameID === false){
+				//Reject bad input
+				socket.join("dodgyID");
+				io.to("dodgyID").emit('needsRefresh');
+			} else {
+				socket.join(gameID);
+				mysqlUpdate("players", "connected", "1", "id", $userID);
+				emitPlayersInLobby(gameID);
+			}
+
+			(async () => {
+				const queryValues = ["id", "players", "game_id", gameID, "connected", 1];
+				const connectedPlayers = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ?? AND ?? = ??", queryValues);
+				//Returns array of objects
+				if(connectedPlayers.length > 1){
+					io.to(gameHash).emit('enableGameStart');
+				} else {
+					io.to(gameHash).emit('disableGameStart');
+				}
+			 })();
+			
+		 })();
+
+		
 
 
-		//if this user is roundmaster, clear all other roundmasters.
-		if(isMaster === true ){
-		let indexOfPlayersInGame = indexOfInColumn(connectedPlayersTable, 0, gameHash, false);
-		for (let i = 0; i < indexOfPlayersInGame.length; i++) {
-			let currentRow = indexOfPlayersInGame[i];
-			//make nobody in room master
-			connectedPlayersTable[currentRow][3] = false;
-		}
-		}
+		// //if this user is roundmaster, clear all other roundmasters.
+		// if(isMaster === true ){
+		// let indexOfPlayersInGame = indexOfInColumn(connectedPlayersTable, 0, gameHash, false);
+		// for (let i = 0; i < indexOfPlayersInGame.length; i++) {
+		// 	let currentRow = indexOfPlayersInGame[i];
+		// 	//make nobody in room master
+		// 	connectedPlayersTable[currentRow][3] = false;
+		// }
+		// }
 
-		//If new player isn't already in the table, add them
-		//Column 1 is "userID"
-		if(indexOfInColumn(connectedPlayersTable, 1, userID) === -1){
-			connectedPlayersTable.push([gameHash, userID, clientSession.fullname, clientSession.isMaster]);
-		}
-		emitPlayersInLobby(gameHash);
 
-		if(indexOfInColumn(connectedPlayersTable, 0, gameHash, false, false).length >1){
-			io.to(gameHash).emit('enableGameStart');
-		} else {
-			io.to(gameHash).emit('disableGameStart');
-		}
+
+
 
 
 
@@ -62,6 +139,10 @@ let notify = io.on('connection', (socket) => {
 
 
 	socket.on('disconnect', () => {
+		
+		mysqlQuery("UPDATE `players` SET `connected` = 0 WHERE `id` = " + $userID + ";");
+
+
 		//Delete disconnected user from table
 		disconnectedUserIndex = indexOfInColumn(connectedPlayersTable, 1, userID);
 		connectedPlayersTable.splice(disconnectedUserIndex, 1);
@@ -80,7 +161,6 @@ let notify = io.on('connection', (socket) => {
 			//assign someone to become host
 			newHost = indexOfInColumn(connectedPlayersTable, 0, gameHash);
 			//get their user ID
-			//they may not exist!!! add checks for this!.
 			if (newHost !== -1){
 				newHost = connectedPlayersTable[newHost][1];
 			} else {
@@ -128,7 +208,15 @@ let notify = io.on('connection', (socket) => {
 
 
 
-function emitPlayersInLobby(gameHash){
+function emitPlayersInLobby(gameID){
+
+
+	gameID = mysqlQuery("SELECT `fullname` FROM `players` WHERE `game_id`=" + $gameID + ";");
+
+
+
+
+
 	console.table(connectedPlayersTable);
 //Get names of players in lobby to update who's there.
 	//Column 0 is gamehash
