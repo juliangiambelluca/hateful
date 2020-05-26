@@ -1,5 +1,7 @@
+/////////////////////////
+//Setup MySQL
+/////////////////////////
 const mysql = require('mysql');
-
 const pool = mysql.createPool({
     connectionLimit : 100, //important
     host     : '127.0.0.1',
@@ -8,8 +10,7 @@ const pool = mysql.createPool({
     password : 'rrfKa-dd6-sCX7F',
     debug    :  false
 });
-
-// query rows in the table
+//Custom DB Access helper functions
 async function mysqlSelect(select, from, where, equals) {
     let selectQuery = 'SELECT ?? FROM ?? WHERE ?? = ?';    
     let query = mysql.format(selectQuery,[select,from,where,equals]);
@@ -22,19 +23,6 @@ async function mysqlSelect(select, from, where, equals) {
               resolve (data);
             });
         }); 
-	} 
-
-async function mysqlCustom(customQuery = "", values = []) {
-	let query = mysql.format(customQuery,values);
-	return new Promise( (resolve) => {
-		pool.query(query, (error, data) => {
-			if(error) {
-				console.error(error);
-				return false;
-			}
-				resolve (data);
-			});
-		}); 
 	} 
 
 async function mysqlUpdate(update, set, setEquals, where, equals) {
@@ -51,49 +39,66 @@ async function mysqlUpdate(update, set, setEquals, where, equals) {
 		}); 
 	} 
 
-
-
-
+async function mysqlCustom(customQuery = "", values = []) {
+	let query = mysql.format(customQuery,values);
+	return new Promise( (resolve) => {
+		pool.query(query, (error, data) => {
+			if(error) {
+				console.error(error);
+				return false;
+			}
+				resolve (data);
+			});
+		}); 
+	} 
 /////////////////////////
 
-
-let app = require('express')();
-let http = require('http').createServer(app);
-let io = require('socket.io')(http);
+/////////////////////////
+//Setup Socket.IO
+/////////////////////////
+const app = require('express')();
+const http = require('http').createServer(app);
+const io = require('socket.io')(http);
 http.listen(3000, () => {
 	console.log('listening on *:3000');
 });
-
-//An array of arrays acting as in-memory data structure store.
-//Structure: Column 0 : gameHash, Column 1 : userID, Column 2 : fullname, Column 3 : isMaster
-let connectedPlayersTable = [];
-/////////////////////////////////////////////////////////////
+/////////////////////////
 
 
 let notify = io.on('connection', (socket) => {
-	console.log('a user connected');
-	let gameHash = "";
+	console.log('A user connected.');
+	
+	//Initialise variables in connection scope
+	let gameID = "";
 	let userID = "";
-	let isMaster = "";
-	let clientSession = [];
-	//join users own 'room'
+
 	socket.on('join', function (dirtyUserID) {
+		//Never use the dirty user ID in SQL queries!
 		//Sanitise Input
 		userID = dirtyUserID.replace(/[^0-9]/g, '');
 		//if userID is more than 9.9... Billion, it's defintely invalid.
 		if(userID.length > 10){userID = null};
+
 		(async () => {
 			gameID = await mysqlSelect("game_id", "players", "id", userID);
 			//Returns array of objects
-			//First result, attribute game_id
+			//First result (row); attribute: game_id
 			gameID = gameID[0].game_id;
 			if(gameID === false){
 				//Reject bad input
 				socket.join("dodgyID");
 				io.to("dodgyID").emit('needsRefresh');
+				console.log("Dodgy User ID denied:" + dirtyUserID)
 			} else {
 				socket.join(gameID);
-				mysqlUpdate("players", "connected", "1", "id", $userID);
+				//User joined their room. Mark them as connected in DB
+				mysqlUpdate("players", "connected", "1", "id", userID);
+
+				//Let user know they connected and output this to console.
+				console.log(userID + ' Joined room:' + gameID) 
+				io.to(gameHash).emit('joinRoomSuccess');
+
+				//Let everyone in room know the updated connected users list.
 				emitPlayersInLobby(gameID);
 			}
 
@@ -110,112 +115,54 @@ let notify = io.on('connection', (socket) => {
 			
 		 })();
 
-		
-
-
-		// //if this user is roundmaster, clear all other roundmasters.
-		// if(isMaster === true ){
-		// let indexOfPlayersInGame = indexOfInColumn(connectedPlayersTable, 0, gameHash, false);
-		// for (let i = 0; i < indexOfPlayersInGame.length; i++) {
-		// 	let currentRow = indexOfPlayersInGame[i];
-		// 	//make nobody in room master
-		// 	connectedPlayersTable[currentRow][3] = false;
-		// }
-		// }
-
-
-
-
-
-
-
-		console.log(clientSession.fullname + ' joining ' + gameHash) 
-		var joinMsg = ` joined lobby: ` + gameHash;
-		io.to(gameHash).emit('user_join', joinMsg);
 	});
 
-
-
-
-
-	socket.on('disconnect', () => {
-		
-		mysqlQuery("UPDATE `players` SET `connected` = 0 WHERE `id` = " + $userID + ";");
-
-
-		//Delete disconnected user from table
-		disconnectedUserIndex = indexOfInColumn(connectedPlayersTable, 1, userID);
-		connectedPlayersTable.splice(disconnectedUserIndex, 1);
 	
-		if(isMaster === true){
+	socket.on('disconnect', () => {
+		(async () => {
+			isMaster = await mysqlSelect("ismaster", "players", "id", userID);
+			//Returns array of objects
+			isMaster = isMaster[0].ismaster
 
+			if (ismaster===1){
+				//user is round master
 
-			//ensure there's no host masters and choose again
-			let indexOfPlayersInGame = indexOfInColumn(connectedPlayersTable, 0, gameHash, false);
-			for (let i = 0; i < indexOfPlayersInGame.length; i++) {
-				let currentRow = indexOfPlayersInGame[i];
-				//make nobody in game master
-				connectedPlayersTable[currentRow][3] = false;
+				//SELECT NEW USER FROM DATABASE AND MAKE THEM MASTER
+				//EMIT TO THEM THAT THEY ARE HOST MASTER
 			}
+		})();
 
-			//assign someone to become host
-			newHost = indexOfInColumn(connectedPlayersTable, 0, gameHash);
-			//get their user ID
-			if (newHost !== -1){
-				newHost = connectedPlayersTable[newHost][1];
-			} else {
-				//nobody else left in game.
-			}
+		(async () => {
+			//Mark them as disconnected in DB.
+			await mysqlUpdate("players", "connected", "0", "id", userID);
+			
+			//Update front-end player list.
+			emitPlayersInLobby(gameHash);
 
-			console.log("requestSender=(" + newHost + ")");
+			//Check if there's still enough players to start the game.
+			(async () => {
+				const queryValues = ["id", "players", "game_id", gameID, "connected", 1];
+				const connectedPlayers = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ?? AND ?? = ??", queryValues);
+				//Returns array of objects
+				if(connectedPlayers.length > 1){
+					io.to(gameHash).emit('enableGameStart');
+				} else {
+					io.to(gameHash).emit('disableGameStart');
+				}
+			})(); //End of connected player db count async
+		})(); //End of disconnect db update async
 
-			//Tell request sender to send request and everyone else to refresh.
-			io.to(gameHash).emit('newHost', newHost);
+	}); // End of disconnect function
 
-		}
-
-
-		//Clear these variables just in case.
-		userID = null;
-		isMaster = null;
-		gameHash = null;
-
-		//Check if there's still enough players to start the game
-		if(indexOfInColumn(connectedPlayersTable, 0, gameHash, false, false).length < 2){
-			io.to(gameHash).emit('disableGameStart');
-		}
-
-		//Update front-end player list.
-		emitPlayersInLobby(gameHash);
-	});
+}); //End of connection scope.
 
 
 
-
-
-
-
-
-
-
-});
-
-
-
-
-
-
-
-
+//Custom Functions area
 
 function emitPlayersInLobby(gameID){
 
-
 	gameID = mysqlQuery("SELECT `fullname` FROM `players` WHERE `game_id`=" + $gameID + ";");
-
-
-
-
 
 	console.table(connectedPlayersTable);
 //Get names of players in lobby to update who's there.
@@ -230,35 +177,4 @@ function emitPlayersInLobby(gameID){
 		playerIDsInGame.push(connectedPlayersTable[currentRow][1]);
 	}
 	io.to(gameHash).emit('playersInLobby', [playerIDsInGame, fullnamesInGame]);
-}
-	
-function indexOfInColumn(parent, column, item, firstOnly = true, distinct = false) {
-	//Find the index(es) of item in outer most array in a 2D array.
-	//DATATYPE SENSITIVE
-
-	let parentIndexes = [];
-
-	//Optimisation; if only first occurence is needed, then value will be distinct anyway.
-	if(firstOnly){distinct=true;}
-
-	for (let p = 0; p < parent.length; p++) {
-		if (parent[p][column] === item){
-
-			if(distinct){
-				if(firstOnly){
-					return p;
-				}
-				if(parentIndexes.indexOf(p)===-1){
-					parentIndexes.push(p);
-				}
-			} else {
-				parentIndexes.push(p);
-			}
-		}
-	}
-	if (parentIndexes.length === 0 ){
-		return -1;   // Not found
-	} else {
-		return parentIndexes;
-	}
 }
