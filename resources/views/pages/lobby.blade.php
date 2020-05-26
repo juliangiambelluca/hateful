@@ -109,9 +109,9 @@
         $(function () {
           const socket = io('http://127.0.0.1:3000');
           //User inputs in session have already been sanitised. @json laravel blade directive not working for me.
-          const clientSession = '{!! json_encode(session()->all()) !!}';
+		  const userID = "{{session('userID')}}";
           //join this room
-          socket.emit('join', clientSession );
+          socket.emit('join', userID);
           // user is connected
           socket.on('user_join', function (data) {
            console.log(data);
@@ -119,9 +119,8 @@
 
 		  socket.on('newHost', function (newHost = "default") {
 			if(newHost === {{session('userID')}}){
-				updateHost();
+				
 			}
-			location.reload();
 		  });
 
 
@@ -178,9 +177,6 @@
 		
 
 
-function updateHost(){
-	window.location.href = "http://hateful/uh/{{ session('userID') }}";
-}
 
 	
         function displayNameCards(players){
