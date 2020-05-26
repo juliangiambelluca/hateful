@@ -64,8 +64,8 @@ class PlayerController extends Controller
                 $newSessionToken = Hash::make(rand());
                 $player = new Player([
                     'fullname' => $inputFullname,
-                    'game_id' => $oldGame->id,
                     'session' => $newSessionToken,
+                    'connected' => false,
                     'ismaster' => 0
                 ]);
                 //Save new player in relation to this game.
