@@ -54,7 +54,7 @@ use Illuminate\Http\Request;
     ]);
     
 
-    Route::get('/uh/{newHost}', [
+    Route::post('/uh/', [
         'uses' => 'PlayerController@updateHost',
         'as' => 'update-host'
     ]);
