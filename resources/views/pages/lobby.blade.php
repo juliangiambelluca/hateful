@@ -89,11 +89,11 @@
         </main>
       </div>
     </div>
-<!-- 
+
 <form  style="display: none" id="new-host-inputs" method="POST" action="">
 {{ csrf_field() }}
 <input type="hidden" id="new-host" name="new-host" value="{{ session('userID') }}">
-</form> -->
+</form>
 
     <script src="{{ URL::to('js/jquery.js') }}"></script>
 
@@ -113,13 +113,18 @@
           //join this room
           socket.emit('join', userID);
           // user is connected
-          socket.on('user_join', function (data) {
-           console.log(data);
+          socket.on('joinRoomSuccess', function () {
+           console.log("You are connected to the room!");
 		  });
+		//   socket.on('potato', function () {
+		// 	alert("potato");
+		// });
 
-		  socket.on('newHost', function (newHost = "default") {
-			if(newHost === {{session('userID')}}){
-				
+		  socket.on('newHost', function (newHost) {
+			if(newHost == userID){
+				setTimeout(() => {
+					location.reload();
+				}, 1000);
 			}
 		  });
 
@@ -208,6 +213,43 @@
         // //   $("#player-"+playerID).remove();
         // }
 
+
+
+
+function updateHost(){
+	//Get Inputs
+	let setInputs = {};
+	//Put all inputs into object
+  	$.each($('#new-host-inputs').serializeArray(), function(i, field) {
+      setInputs[field.name] = field.value;
+	});
+//Send to server
+const sendPackage= () => {
+      	return new Promise((resolve, reject) => {
+          	$.ajax({
+				url: "{{ route('update-host') }}",
+        		method: 'POST',
+				dataType: "text",
+				data: setInputs,
+				success: function (response) {
+				$( "#debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
+					resolve(response);
+				},
+				error: function (response) {
+				 $( "#debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
+					reject(response);
+				},
+         	});
+        });
+	}
+	sendPackage().then(response => {
+	})
+	.catch(response => {
+		alert(".catch at updateHost")
+	});
+
+
+}
 
 
       </script>
