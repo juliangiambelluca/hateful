@@ -13,19 +13,8 @@ class PlayerController extends Controller
 {   
 
     public function updateHost($newHostID){
-        $newHost = Player::find($newHostID);
-        $players = Player::where('game_id', '=', session('gameID'))->get(); 
-        
-        //Ensure nobody is host.
-        foreach ($players as $player) {
-            $host->ismaster=0;
-            $host->save();
-        }
-        
-            $newHost->ismaster=1; 
-            $newHost->save();
-        
-        return redirect('/lobby-or-game');
+        session(['isMaster' => true]);
+        return;
     }
 
 
