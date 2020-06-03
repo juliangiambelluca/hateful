@@ -108,27 +108,29 @@ let notify = io.on('connection', (socket) => {
 				io.to("dodgyID").emit('dodgyID');
 				console.log("Dodgy User ID denied:" + dirtyUserID)
 			} else {
-				socket.join(gameID);
-
-				socket.handshake.session.userdata = [gameID, userID];
-				socket.handshake.session.save();
+				socket.join(userID);
+				//Every user will have their own room as session scope is room-based.
 
 
+				socket.userdata = [gameID, userID];
+				// socket.handshake.session.save();
+
+				console.log("socket user data says " + socket.userdata)
 				//if they return after leaving within 10 seconds, stop db from updating them to disconnected.
 				if (timeoutUserIDPivot.includes(userID)) {
-					console.log("Trying to clear timer");
 					const timeoutRow = timeoutUserIDPivot.indexOf(userID);
 					clearTimeout(timeouts[timeoutRow]);
 					timeoutUserIDPivot.splice(timeoutRow, 1);
 					timeouts.splice(timeoutRow, 1);
+					console.log("Timeout cleared & deleted from array.");
 				}
 				
 				//User joined their room. Mark them as connected in DB
 				await mysqlUpdate("players", "connected", 1, "id", userID);
 
 				//Let user know they connected and output this to console.
-				console.log(userID + ' Joined room:' + gameID) 
-				io.to(gameID).emit('joinRoomSuccess');
+				console.log(userID + ' Joined room:' + gameID);
+				emitToLobby(gameID, 'joinRoomSuccess');
 
 				//Let everyone in room know the updated connected users list.
 				emitPlayersInLobby(gameID);
@@ -139,9 +141,10 @@ let notify = io.on('connection', (socket) => {
 				const connectedPlayers = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ?", queryValues);
 				//Returns array of objects
 				if(connectedPlayers.length > 1){
-					io.to(gameID).emit('enableGameStart');
+					emitToLobby(gameID, 'enableGameStart');
 				} else {
-					io.to(gameID).emit('disableGameStart');
+					emitToLobby(gameID, 'disableGameStart');
+					
 				}
 			 })();
 			
@@ -151,39 +154,56 @@ let notify = io.on('connection', (socket) => {
 
 	
 	socket.on('disconnect', () => {
-		console.log("A user is disconnecting");
+		if (socket.userdata) {
+			const sessionData = socket.userdata;
+			const userID = sessionData[1];
+		}
+
+		console.log("A user (" + userID + ") is disconnecting");
 		const disconnectTimer = setTimeout(function(){
+		console.log("disconnectTimer triggered");
 			(async () => {
 				
-				if (socket.handshake.session.userdata) {
-					const sessionData = socket.handshake.session.userdata;
+				if (socket.userdata) {
+					const sessionData = socket.userdata;
 					const gameID = sessionData[0];
 					const userID = sessionData[1];
+					console.log("There is a session: " + JSON.stringify(sessionData));
 				} else {
+					console.log("There was no session. Exiting disconnectTimer function.");
 					return;
 				}
-
-				console.log("User " + userID + "Is disconneted. Timer expired.");
 				
 				isMaster = await mysqlSelect("ismaster", "players", "id", userID);
 				//Returns array of objects
 				isMaster = isMaster[0].ismaster;
-				(async () => {
+
+				console.log(userID + "'s Master status: '" + isMaster + "'");
+				
+
+
 				if (isMaster==1){
-					const queryValues = ["id", "players", "game_id", gameID, "connected", 1, "ismaster", 0, "created_at"];
-					const playersLeft = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? ORDER BY ?? DESC", queryValues);
-					
-					//LAST EXCEPTION CAUGHT HERE. CANNOT READ PROPERTY ON UNDEFINED.
-					newHost = playersLeft[0].id;
-					
-					io.to(gameID).emit('newHost', newHost);
+					console.log("isMaster==1");
 
-					console.log(userID + " lost Host privilege to " + newHost)
+					const queryValues = ["id", "fullname", "players", "game_id", gameID, "connected", 1, "ismaster", 0, "created_at"];
+					const playersLeft = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? ORDER BY ?? DESC", queryValues);
+					
+					console.log("Players Left obj: " + JSON.stringify(playersLeft));
+				
+					if(playersLeft.length!==0){
+						//LAST EXCEPTION CAUGHT HERE. CANNOT READ PROPERTY ON UNDEFINED. fixed?
+						const newHost = [playersLeft[0].id, playersLeft[0].fullname];
+						console.log("newHostArr=" + JSON.stringify(newHost))
 
-					mysqlUpdate("players", "ismaster", 0, "id", userID);
-					mysqlUpdate("players", "ismaster", 1, "id", newHost);
+						await mysqlUpdate("players", "ismaster", 1, "id", newHost[0]);
+						await mysqlUpdate("players", "ismaster", 0, "id", userID);
+						console.log(userID + " lost Host privilege to " + newHost[0]);
+						emitToLobby(gameID, 'newHost', newHost);
+					} else {
+						console.log("Everyone left!")
+					}
 				}
-			})();
+				
 				//Mark them as disconnected in DB.
 				await mysqlUpdate("players", "connected", 0, "id", userID);
 				
@@ -196,9 +216,9 @@ let notify = io.on('connection', (socket) => {
 					const connectedPlayers = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ?", queryValues);
 					//Returns array of objects
 					if(connectedPlayers.length > 1){
-						io.to(gameID).emit('enableGameStart');
+						emitToLobby(gameID, 'enableGameStart');
 					} else {
-						io.to(gameID).emit('disableGameStart');
+						emitToLobby(gameID, 'disableGameStart');
 					}
 				// })(); //End of connected player db count async
 
@@ -208,23 +228,25 @@ let notify = io.on('connection', (socket) => {
 				const timeoutRow = timeoutUserIDPivot.indexOf(userID);
 				timeoutUserIDPivot.splice(timeoutRow, 1);
 				timeouts.splice(timeoutRow, 1);
+				console.log("Deleted timeout from array as it's no longer needed.");
 
+				if (socket.userdata) {
+					delete socket.userdata;
+					// socket.handshake.session.save();
+					console.log("Session deleted");
 
-
-				if (socket.handshake.session.userdata) {
-					delete socket.handshake.session.userdata;
-					socket.handshake.session.save();
 				}
 
 			})(); //End of disconnect db update async
 		}, 5000);
 
-		if (socket.handshake.session.userdata) {
+		if (socket.userdata) {
 		//Save the timer ID to timeout table.
-		const sessionData = socket.handshake.session.userdata;
-		const userID = sessionData[1];
+		// const sessionData = socket.handshake.session.userdata;
+		const userID = socket.userdata[1];
 		timeouts.push(disconnectTimer);
 		timeoutUserIDPivot.push(userID);
+		console.log("Timer pushed.");
 		}
 
 
@@ -249,6 +271,20 @@ async function emitPlayersInLobby(gameID){
 			connFullnamesArr.push(connectedPlayers[i].fullname);
 			connUserIDsArr.push(connectedPlayers[i].id);
 		}
-		io.to(gameID).emit('playersInLobby', [connUserIDsArr, connFullnamesArr]);
+		emitToLobby(gameID, 'playersInLobby', [connUserIDsArr, connFullnamesArr])
 }
 
+async function emitToLobby(gameID, event, data = null){
+	const queryValues = ["id", "fullname", "players", "game_id", gameID, "connected", 1];
+	const connectedPlayers = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ?", queryValues);
+	//Returns array of objects
+	let connFullnamesArr = [];
+	let connUserIDsArr = [];
+	for(i=0;i<connectedPlayers.length;i++){
+		connFullnamesArr.push(connectedPlayers[i].fullname);
+		connUserIDsArr.push(connectedPlayers[i].id);
+	}
+	for(i=0;i<connectedPlayers.length;i++){
+		io.to(connUserIDsArr[i]).emit(event, data);
+	}
+}
