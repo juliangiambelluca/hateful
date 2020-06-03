@@ -41,7 +41,7 @@
           <div id="game-table">
             <div class="row">
               <div class="col-md-6">
-                <h2 class="m-4">Lobby</h2>
+                <h2 class="m-4">Lobby. {{ session('userID') }}</h2>
                 <div class="m-4">
                   <div class="row">
                     <div class="col-md-6">
@@ -121,10 +121,13 @@
 		// });
 
 		  socket.on('newHost', function (newHost) {
-			if(newHost == userID){
+			if(newHost[0] == userID){
 				setTimeout(() => {
+					alert("The host disconnected. You are the new host.");
 					location.reload();
 				}, 1000);
+			} else {
+				alert("The host disconnected. " + newHost[1] + " is the new host.");
 			}
 		  });
 
