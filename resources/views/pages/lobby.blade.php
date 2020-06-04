@@ -107,7 +107,7 @@
     <script>
         //on page load
         $(function () {
-          const socket = io('http://127.0.0.1:3000');
+			const socket = io('http://127.0.0.1:3000');
           //User inputs in session have already been sanitised. @json laravel blade directive not working for me.
 		  const userID = "{{session('userID')}}";
           //join this room

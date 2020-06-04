@@ -1,6 +1,5 @@
-/////////////////////////
-//Setup MySQL
-/////////////////////////
+
+// Setup MySQL
 const mysql = require('mysql');
 const pool = mysql.createPool({
     connectionLimit : 100, //important
@@ -10,63 +9,15 @@ const pool = mysql.createPool({
     password : 'rrfKa-dd6-sCX7F',
     debug    :  false
 });
-//Custom DB Access helper functions
-async function mysqlSelect(select, from, where, equals) {
-    let selectQuery = 'SELECT ?? FROM ?? WHERE ?? = ?';    
-    let query = mysql.format(selectQuery,[select,from,where,equals]);
-    return new Promise( (resolve) => {
-        pool.query(query, (error, data) => {
-			if(error) {
-				console.error(error);
-				return false;
-			}
-              resolve (data);
-            });
-        }); 
-	} 
-
-async function mysqlUpdate(update, set, setEquals, where, equals) {
-	let selectQuery = 'UPDATE ?? SET ?? = ? WHERE ?? = ?';    
-	let query = mysql.format(selectQuery,[update,set,setEquals,where,equals]);
-	return new Promise( (resolve) => {
-		pool.query(query, (error, data) => {
-			if(error) {
-				console.error(error);
-				return false;
-			}
-				resolve (data);
-			});
-		}); 
-	} 
-
-async function mysqlCustom(customQuery = "", values = []) {
-	let query = mysql.format(customQuery,values);
-	return new Promise( (resolve) => {
-		pool.query(query, (error, data) => {
-			if(error) {
-				console.error(error);
-				return false;
-			}
-				resolve (data);
-			});
-		}); 
-	} 
-/////////////////////////
-
-/////////////////////////
-//Setup Socket.IO
-/////////////////////////
+	
+// Setup Socket.IO
 const app = require('express')();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http);
 http.listen(3000, () => {
 	console.log('listening on *:3000');
 });
-/////////////////////////
-
-/////////////////////////
-//Setup Express session
-/////////////////////////
+// Setup Express session
 session = require("express-session")({
     secret: "my-secret",
     resave: true,
@@ -76,7 +27,6 @@ session = require("express-session")({
 
 // Share session with io sockets
 io.use(sharedsession(session));
-/////////////////////////
 
 
 let timeouts = [];
@@ -260,6 +210,49 @@ let notify = io.on('connection', (socket) => {
 
 
 //Custom Functions area
+
+// Custom DB Access helper functions
+// Make these into an object in future
+async function mysqlSelect(select, from, where, equals) {
+    let selectQuery = 'SELECT ?? FROM ?? WHERE ?? = ?';    
+    let query = mysql.format(selectQuery,[select,from,where,equals]);
+    return new Promise( (resolve) => {
+        pool.query(query, (error, data) => {
+			if(error) {
+				console.error(error);
+				return false;
+			}
+              resolve (data);
+            });
+        }); 
+	} 
+
+async function mysqlUpdate(update, set, setEquals, where, equals) {
+	let selectQuery = 'UPDATE ?? SET ?? = ? WHERE ?? = ?';    
+	let query = mysql.format(selectQuery,[update,set,setEquals,where,equals]);
+	return new Promise( (resolve) => {
+		pool.query(query, (error, data) => {
+			if(error) {
+				console.error(error);
+				return false;
+			}
+				resolve (data);
+			});
+		}); 
+	} 
+
+async function mysqlCustom(customQuery = "", values = []) {
+	let query = mysql.format(customQuery,values);
+	return new Promise( (resolve) => {
+		pool.query(query, (error, data) => {
+			if(error) {
+				console.error(error);
+				return false;
+			}
+				resolve (data);
+			});
+		}); 
+	} 
 
 async function emitPlayersInLobby(gameID){
 		const queryValues = ["id", "fullname", "players", "game_id", gameID, "connected", 1];
