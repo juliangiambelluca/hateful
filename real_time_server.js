@@ -58,8 +58,9 @@ let notify = io.on('connection', (socket) => {
 				io.to("dodgyID").emit('dodgyID');
 				console.log("Dodgy User ID denied:" + dirtyUserID)
 			} else {
+
 				socket.join(userID);
-				//Every user will have their own room as session scope is room-based.
+				//Every user will have their own room as session scope seems to be room-based.
 
 
 				socket.userdata = [gameID, userID];
@@ -99,7 +100,7 @@ let notify = io.on('connection', (socket) => {
 			 })();
 			
 		 })();
-
+  
 	});
 
 	
@@ -268,9 +269,14 @@ async function emitPlayersInLobby(gameID){
 }
 
 async function emitToLobby(gameID, event, data = null){
+	//replacing emiting to a room to experiment with scope
+
+	//Get Players connected to this game
 	const queryValues = ["id", "fullname", "players", "game_id", gameID, "connected", 1];
 	const connectedPlayers = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ?", queryValues);
 	//Returns array of objects
+
+	//For each player connected, emit information.
 	let connFullnamesArr = [];
 	let connUserIDsArr = [];
 	for(i=0;i<connectedPlayers.length;i++){
