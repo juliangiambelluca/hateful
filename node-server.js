@@ -17,21 +17,12 @@ const io = require('socket.io')(http);
 http.listen(3000, () => {
 	console.log('listening on *:3000');
 });
-// Setup Express session
-session = require("express-session")({
-    secret: "my-secret",
-    resave: true,
-    saveUninitialized: true
-  }),
-  sharedsession = require("express-socket.io-session");
-
-// Share session with io sockets
-io.use(sharedsession(session));
 
 
+
+//Store Disconnect timeouts & their users.
 let timeouts = [];
 let timeoutUserIDPivot = [];
-
 
 
 let notify = io.on('connection', (socket) => {
