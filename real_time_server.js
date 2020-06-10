@@ -102,8 +102,56 @@ let notify = io.on('connection', (socket) => {
 		 })();
   
 	});
-
 	
+	socket.on('start-game', async function(){
+		if(socket.userdata){
+			const gameID = socket.userdata[0];
+			const userID = socket.userdata[1];
+
+			isMaster = await mysqlSelect("ismaster", "players", "id", userID);
+			//Returns array of objects
+			//First row, ismaster attribute.
+			isMaster = isMaster[0].ismaster;		
+
+			//Make sure this user is actually master otherwise request refresh.
+			if (isMaster==1){
+				startGame(gameID, userID);
+			} else {
+				//This shouldn't happen. Make user refresh page because something is up.
+				requestRefresh();
+			}
+		}
+			
+		async function startGame(gameID, userID){
+
+			//Apply appropiate game states
+			await mysqlUpdate("games", "started", 1, "id", gameID);
+			
+			//For each player, set their new game state.
+			let queryResult = await mysqlSelect("ismaster", "players", "id", userID);
+			//Returns array of objects
+			
+			let currentConnectedPlayerID;
+			for(i=0;i<queryResult.length;i++){
+				currentConnectedPlayerID = queryResult[i].id;
+
+				if (currentConnectedPlayerID === userID){
+					//This user is host/master
+					await mysqlUpdate("players", "state", "choosing-question", "id", userID);
+				} else {
+					await mysqlUpdate("players", "state", "waiting-for-question", "id", currentConnectedPlayerID);
+				}
+			}
+
+			//Tell everyone to refresh so laravel loads the game view.
+			requestRefresh(gameID);
+		}
+	});
+
+
+
+
+
 	socket.on('disconnect', () => {
 		if (socket.userdata) {
 			console.log("There is a session: " + JSON.stringify(socket.userdata));
@@ -121,7 +169,7 @@ let notify = io.on('connection', (socket) => {
 				isMaster = isMaster[0].ismaster;
 
 				console.log(userID + "'s Master status: '" + isMaster + "'");
-				
+
 				if (isMaster==1){
 					console.log("isMaster==1");
 
@@ -250,6 +298,17 @@ async function emitPlayersInLobby(gameID){
 		io.to(gameID).emit('playersInLobby', [connUserIDsArr, connFullnamesArr]);
 
 }
+
+function requestRefresh(gameID = null){
+	if(gameID === null){
+		//emit refresh to socket.
+		socket.emit('refresh');
+	} else {
+		//emit refresh to room.
+		io.to(gameID).emit('refresh');
+	}
+}
+
 
 // async function emitToLobby(gameID, event, data = null){
 // 	//replacing emiting to a room to experiment with scope
