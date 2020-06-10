@@ -46,7 +46,7 @@
                   <div class="row">
                     <div class="col-md-6">
                       <h5>game link:</h5>
-                      <h6>hateful/{{$response["gameHash"]}}</h6>
+                      <h6>hateful.io/{{$response["gameHash"]}}</h6>
                     </div>
                     <div class="col-md-6">	
                       <h5>game password:</h5>
@@ -219,40 +219,40 @@
 
 
 
-function updateHost(){
-	//Get Inputs
-	let setInputs = {};
-	//Put all inputs into object
-  	$.each($('#new-host-inputs').serializeArray(), function(i, field) {
-      setInputs[field.name] = field.value;
-	});
-//Send to server
-const sendPackage= () => {
-      	return new Promise((resolve, reject) => {
-          	$.ajax({
-				url: "{{ route('update-host') }}",
-        		method: 'POST',
-				dataType: "text",
-				data: setInputs,
-				success: function (response) {
-				$( "#debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
-					resolve(response);
-				},
-				error: function (response) {
-				 $( "#debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
-					reject(response);
-				},
-         	});
-        });
-	}
-	sendPackage().then(response => {
-	})
-	.catch(response => {
-		alert(".catch at updateHost")
-	});
+// function updateHost(){
+// 	//Get Inputs
+// 	let setInputs = {};
+// 	//Put all inputs into object
+//   	$.each($('#new-host-inputs').serializeArray(), function(i, field) {
+//       setInputs[field.name] = field.value;
+// 	});
+// //Send to server
+// const sendPackage= () => {
+//       	return new Promise((resolve, reject) => {
+//           	$.ajax({
+// 				url: "{{ route('update-host') }}",
+//         		method: 'POST',
+// 				dataType: "text",
+// 				data: setInputs,
+// 				success: function (response) {
+// 				$( "#debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
+// 					resolve(response);
+// 				},
+// 				error: function (response) {
+// 				 $( "#debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
+// 					reject(response);
+// 				},
+//          	});
+//         });
+// 	}
+// 	sendPackage().then(response => {
+// 	})
+// 	.catch(response => {
+// 		alert(".catch at updateHost")
+// 	});
 
 
-}
+// }
 
 
       </script>
