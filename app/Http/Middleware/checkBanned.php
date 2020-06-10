@@ -21,7 +21,7 @@ class checkBanned
             //If they are still banned
             if ($bannedUntil > time()){
 
-                abort(404, 'TOO_MANY_LOGIN_ATTEMPTS_GET_YOU_BANNED');
+                abort(403, 'TOO_MANY_LOGIN_ATTEMPTS_GET_YOU_BANNED');
             
             } 
         }
