@@ -107,7 +107,7 @@
     <script>
         //on page load
         $(function () {
-			const socket = io('http://127.0.0.1:3000');
+		const socket = io('http://127.0.0.1:3000');
           //User inputs in session have already been sanitised. @json laravel blade directive not working for me.
 		  const userID = "{{session('userID')}}";
           //join this room
@@ -116,9 +116,6 @@
           socket.on('joinRoomSuccess', function () {
            console.log("You are connected to the room!");
 		  });
-		//   socket.on('potato', function () {
-		// 	alert("potato");
-		// });
 
 		  socket.on('newHost', function (newHost) {
 			if(newHost[0] == userID){
@@ -130,7 +127,10 @@
 				alert("The host disconnected. " + newHost[1] + " is the new host.");
 			}
 		  });
-
+		  
+		  socket.on('refresh', function(){
+			location.reload();
+		  });
 
 		  //Receive players in room
           socket.on('playersInLobby', function (players) {
@@ -142,7 +142,7 @@
 			@if(session('isMaster') === true)
 				$("#start-game").html(`
 				<button id="start-game" class="btn btn-lg mt-4 py-3 btn-success" 
-				style="min-width: 50%; max-width: 83%;" onclick="startGame()">
+				style="min-width: 50%; max-width: 83%;">
 				Start Game.</button>   
 				`);
 			@else
@@ -155,7 +155,12 @@
 				</div>
 				`);
 			@endif
+
+			document.getElementById("start-game").addEventListener("click", function () {
+              socket.emit("start-game");
+		 	 });
 		  });
+
 		  socket.on('disableGameStart', function () {
 			@if(session('isMaster') === true)
 				$("#start-game").html(`
@@ -177,16 +182,10 @@
 				`);
 			@endif
 		  });
-		//   socket.on('playerDisconnect', function (playerID) {
-		// 	deleteNameCard(playerID);
-        //   });
 
 		});
-		
 
-
-
-	
+		  
         function displayNameCards(players){
 			let render = "";
 
@@ -212,48 +211,8 @@
 			$("#name-cards").html(render);
 		}
 		
-		// function deleteNameCard (playerID){
-        // //   $("#player-"+playerID).remove();
-        // }
 
-
-
-
-// function updateHost(){
-// 	//Get Inputs
-// 	let setInputs = {};
-// 	//Put all inputs into object
-//   	$.each($('#new-host-inputs').serializeArray(), function(i, field) {
-//       setInputs[field.name] = field.value;
-// 	});
-// //Send to server
-// const sendPackage= () => {
-//       	return new Promise((resolve, reject) => {
-//           	$.ajax({
-// 				url: "{{ route('update-host') }}",
-//         		method: 'POST',
-// 				dataType: "text",
-// 				data: setInputs,
-// 				success: function (response) {
-// 				$( "#debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
-// 					resolve(response);
-// 				},
-// 				error: function (response) {
-// 				 $( "#debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
-// 					reject(response);
-// 				},
-//          	});
-//         });
-// 	}
-// 	sendPackage().then(response => {
-// 	})
-// 	.catch(response => {
-// 		alert(".catch at updateHost")
-// 	});
-
-
-// }
-
+	
 
       </script>
 
