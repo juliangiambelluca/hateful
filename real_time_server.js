@@ -59,7 +59,7 @@ let notify = io.on('connection', (socket) => {
 				console.log("Dodgy User ID denied:" + dirtyUserID)
 			} else {
 
-				socket.join(userID);
+				socket.join(gameID);
 				//Every user will have their own room as session scope seems to be room-based.
 
 
@@ -81,7 +81,7 @@ let notify = io.on('connection', (socket) => {
 
 				//Let user know they connected and output this to console.
 				console.log(userID + ' Joined room:' + gameID);
-				emitToLobby(gameID, 'joinRoomSuccess');
+				io.to(gameID).emit('joinRoomSuccess');
 
 				//Let everyone in room know the updated connected users list.
 				emitPlayersInLobby(gameID);
@@ -92,9 +92,9 @@ let notify = io.on('connection', (socket) => {
 				const connectedPlayers = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ?", queryValues);
 				//Returns array of objects
 				if(connectedPlayers.length > 1){
-					emitToLobby(gameID, 'enableGameStart');
+					io.to(gameID).emit('enableGameStart');
 				} else {
-					emitToLobby(gameID, 'disableGameStart');
+					io.to(gameID).emit('disableGameStart');
 					
 				}
 			 })();
@@ -106,33 +106,22 @@ let notify = io.on('connection', (socket) => {
 	
 	socket.on('disconnect', () => {
 		if (socket.userdata) {
-			const sessionData = socket.userdata;
-			const userID = sessionData[1];
-		}
+			console.log("There is a session: " + JSON.stringify(socket.userdata));
+			console.log("A user (" + socket.userdata[1] + ") is disconnecting");
 
-		console.log("A user (" + userID + ") is disconnecting");
-		const disconnectTimer = setTimeout(function(){
-		console.log("disconnectTimer triggered");
-			(async () => {
-				
-				if (socket.userdata) {
-					const sessionData = socket.userdata;
-					const gameID = sessionData[0];
-					const userID = sessionData[1];
-					console.log("There is a session: " + JSON.stringify(sessionData));
-				} else {
-					console.log("There was no session. Exiting disconnectTimer function.");
-					return;
-				}
-				
+			//Create set timeout to disconnect after a few seconds
+			const disconnectTimer = setTimeout(async function(userData){
+
+				console.log("disconnectTimer triggered");
+				const gameID = userData[0];
+				const userID = userData[1];
 				isMaster = await mysqlSelect("ismaster", "players", "id", userID);
 				//Returns array of objects
+				//First row, ismaster attribute.
 				isMaster = isMaster[0].ismaster;
 
 				console.log(userID + "'s Master status: '" + isMaster + "'");
 				
-
-
 				if (isMaster==1){
 					console.log("isMaster==1");
 
@@ -149,9 +138,13 @@ let notify = io.on('connection', (socket) => {
 						await mysqlUpdate("players", "ismaster", 1, "id", newHost[0]);
 						await mysqlUpdate("players", "ismaster", 0, "id", userID);
 						console.log(userID + " lost Host privilege to " + newHost[0]);
-						emitToLobby(gameID, 'newHost', newHost);
+						io.to(gameID).emit('newHost', newHost);
 					} else {
 						console.log("Everyone left!")
+
+						//Delete everything related to this game!
+
+
 					}
 				}
 				
@@ -160,49 +153,38 @@ let notify = io.on('connection', (socket) => {
 				
 				//Update front-end player list.
 				emitPlayersInLobby(gameID);
-	
-				//Check if there's still enough players to start the game.
-				// (async () => {
-					const queryValues = ["id", "players", "game_id", gameID, "connected", 1];
-					const connectedPlayers = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ?", queryValues);
-					//Returns array of objects
-					if(connectedPlayers.length > 1){
-						emitToLobby(gameID, 'enableGameStart');
-					} else {
-						emitToLobby(gameID, 'disableGameStart');
-					}
-				// })(); //End of connected player db count async
 
+				const queryValues = ["id", "players", "game_id", gameID, "connected", 1];
+				const connectedPlayers = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ?", queryValues);
+				//Returns array of objects
+				if(connectedPlayers.length > 1){
+					io.to(gameID).emit('enableGameStart');
+				} else {
+					io.to(gameID).emit('disableGameStart');
+				}
 
-				
-				//Clear this value from the timeouts table
+				//Clear this timer from the timeouts table
 				const timeoutRow = timeoutUserIDPivot.indexOf(userID);
+				//Important to delete both to keep timeouts and user ID's indexes aligned.
 				timeoutUserIDPivot.splice(timeoutRow, 1);
 				timeouts.splice(timeoutRow, 1);
 				console.log("Deleted timeout from array as it's no longer needed.");
 
-				if (socket.userdata) {
-					delete socket.userdata;
-					// socket.handshake.session.save();
-					console.log("Session deleted");
+				delete socket.userdata;
+				// socket.handshake.session.save();
+				console.log("Session deleted");
+		
+			}, 10000, socket.userdata);
+			// Important to pass the userdata to the timer function!
 
-				}
+			timeouts.push(disconnectTimer);
+			timeoutUserIDPivot.push(socket.userdata[1]);
+			console.log("Timer pushed.");
 
-			})(); //End of disconnect db update async
-		}, 5000);
-
-		if (socket.userdata) {
-		//Save the timer ID to timeout table.
-		// const sessionData = socket.handshake.session.userdata;
-		const userID = socket.userdata[1];
-		timeouts.push(disconnectTimer);
-		timeoutUserIDPivot.push(userID);
-		console.log("Timer pushed.");
+		} else {
+			console.log("There was no session. Exiting disconnectTimer function.");
+			return;
 		}
-
-
-
-
 
 	}); // End of disconnect function
 
@@ -213,7 +195,6 @@ let notify = io.on('connection', (socket) => {
 //Custom Functions area
 
 // Custom DB Access helper functions
-// Make these into an object in future
 async function mysqlSelect(select, from, where, equals) {
     let selectQuery = 'SELECT ?? FROM ?? WHERE ?? = ?';    
     let query = mysql.format(selectQuery,[select,from,where,equals]);
@@ -265,25 +246,27 @@ async function emitPlayersInLobby(gameID){
 			connFullnamesArr.push(connectedPlayers[i].fullname);
 			connUserIDsArr.push(connectedPlayers[i].id);
 		}
-		emitToLobby(gameID, 'playersInLobby', [connUserIDsArr, connFullnamesArr])
+		// emitToLobby(gameID, 'playersInLobby', [connUserIDsArr, connFullnamesArr])
+		io.to(gameID).emit('playersInLobby', [connUserIDsArr, connFullnamesArr]);
+
 }
 
-async function emitToLobby(gameID, event, data = null){
-	//replacing emiting to a room to experiment with scope
+// async function emitToLobby(gameID, event, data = null){
+// 	//replacing emiting to a room to experiment with scope
 
-	//Get Players connected to this game
-	const queryValues = ["id", "fullname", "players", "game_id", gameID, "connected", 1];
-	const connectedPlayers = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ?", queryValues);
-	//Returns array of objects
+// 	//Get Players connected to this game
+// 	const queryValues = ["id", "fullname", "players", "game_id", gameID, "connected", 1];
+// 	const connectedPlayers = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ?", queryValues);
+// 	//Returns array of objects
 
-	//For each player connected, emit information.
-	let connFullnamesArr = [];
-	let connUserIDsArr = [];
-	for(i=0;i<connectedPlayers.length;i++){
-		connFullnamesArr.push(connectedPlayers[i].fullname);
-		connUserIDsArr.push(connectedPlayers[i].id);
-	}
-	for(i=0;i<connectedPlayers.length;i++){
-		io.to(connUserIDsArr[i]).emit(event, data);
-	}
-}
+// 	//For each player connected, emit information.
+// 	let connFullnamesArr = [];
+// 	let connUserIDsArr = [];
+// 	for(i=0;i<connectedPlayers.length;i++){
+// 		connFullnamesArr.push(connectedPlayers[i].fullname);
+// 		connUserIDsArr.push(connectedPlayers[i].id);
+// 	}
+// 	for(i=0;i<connectedPlayers.length;i++){
+// 		io.to(connUserIDsArr[i]).emit(event, data);
+// 	}
+// }
