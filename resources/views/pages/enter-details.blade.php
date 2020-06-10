@@ -217,18 +217,18 @@ function joinGame(){
     
 			$("#input-error-alert").fadeOut(50);
 		//Get resposnse
-		let setResponseObj = JSON.parse(response);
+		let responseObj = JSON.parse(response);
 
-		switch(setResponseObj.result) {
-		case "canaccess":
+		switch(responseObj.result) {
+		case "can-access":
 			window.location.href = "{{ route('lobby-or-game') }}";
 			break;
 		case "password":
       //Password incorrect
 			$("#input-error-alert").fadeIn(450);
-			$( "#input-errors" ).html(`Password is invalid. You've got ${ 5 - setResponseObj.failedLoginAttempts } attempt(s) left before you get locked out for 2 minutes.`);
+			$( "#input-errors" ).html(`Password is invalid. You've got ${ 5 - responseObj.failedLoginAttempts } attempt(s) left before you get locked out for 2 minutes.`);
       break;
-		case "gameNotFound":
+		case "game-not-found":
       //Game no longer exists
       $("#input-error-alert").fadeIn(450);
 			$( "#input-errors" ).html(`We can't find that game. Make sure link is correct and that game hasn't ended.`);
@@ -265,6 +265,9 @@ function joinGame(){
 		}
 	});
 }
+
+
+
 function createGame(){
   event.preventDefault()
 
@@ -295,8 +298,11 @@ function createGame(){
         });
 	}
 	sendPackage().then(response => {
+
 		//Get resposnse
 		let setResponseObj = JSON.parse(response);
+
+
 
 		switch(setResponseObj.result) {
 		case "lobby":
