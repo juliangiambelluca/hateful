@@ -32,11 +32,14 @@ class PlayerController extends Controller
         $this->validate($request, $rules, $customMessages, $attributeNames);
         //Validation END
 
-        //sanitise inputs
-        //Password and Hash will never contain special characters under normal/safe circumstances.
+        //Sanitise inputs
+        //Generated Password and Hash will never contain special characters under normal/safe circumstances.
         $inputGameHash = htmlspecialchars($request->input('game-hash'));
         $inputFullname = htmlspecialchars($request->input('input-name'));
         $inputPassword = htmlspecialchars($request->input('input-password'));
+               
+        //init login attempts
+        $loginAttempts = 0;
 
         //Check if game exists
         $oldGame = Game::where('hash', '=', $inputGameHash)->first(); 
@@ -77,9 +80,7 @@ class PlayerController extends Controller
             } else {
                 //Passwords did not match
                 $result = "password";
-                
-                //init login attempts
-                $loginAttempts = 0;
+ 
                 //Using php session so web routes has access.
                 if ($request->session()->has('failedLoginAttempts')) {
                     
@@ -101,7 +102,7 @@ class PlayerController extends Controller
 
         } else {
             //Game does not exist
-            $result = "gameNotFound";
+            $result = "game-not-found";
         }
         //Game exist if end
 
