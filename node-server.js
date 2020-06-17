@@ -1,3 +1,4 @@
+const fs = require('fs');
 
 // Setup MySQL
 const mysql = require('mysql');
@@ -128,20 +129,60 @@ let notify = io.on('connection', (socket) => {
 
 				if (currentConnectedPlayerID === userID){
 					//This user is host/master
-					await mysqlUpdate("players", "state", "choosing-question", "id", userID);
+					await mysqlUpdate("players", "state", "needs-questions", "id", userID);
 				} else {
 					await mysqlUpdate("players", "state", "waiting-for-question", "id", currentConnectedPlayerID);
 				}
 			}
 
 			//Tell everyone to refresh so laravel loads the game view.
-			requestRefresh(gameID);
+			setTimeout(() => {
+				requestRefresh(gameID);
+			}, 500);
 		}
 	});
 
+	socket.on('what-is-my-state', async function(){
+		if(socket.userdata){
+			userStateResult = await mysqlSelect("state", "players", "id", socket.userdata[1]);
+			userState = userStateResult[0].state;
+			
+			console.log(socket.userdata[1] + "'s state is:" + userState);
+
+			switch ("waiting-for-question") {
+				case "waiting-for-question":
+					try {
+						var data = fs.readFileSync('C:\\Users\\julia\\hateful\\hateful\\game-states\\player-wait-for-question.html', 'utf8');
+						console.log("File read")
+						// setTimeout(() => {
+							
+						socket.emit("load-new-state", data);
+						// }, 1000);
+					} catch(e) {
+						alertSocket(socket, "Sorry, we couldn't load your game. Something went wrong on our end. Please refresh the page or try again later.")
+						console.log('Error:', e.stack);
+					}
+					break;
+				case "needs-questions":
+					
+					break;
+				case value:
+					
+					break;
+				case value:
+					
+					break;
+			
+				default:
+					break;
+			}
+		} else {
+			alertSocket("Something went wrong. Please refresh the page.")
+		}
+		
 
 
-
+	});
 
 	socket.on('disconnect', () => {
 		if (socket.userdata) {
@@ -300,23 +341,7 @@ function requestRefresh(gameID = null){
 	}
 }
 
+function alertSocket(socket, message){
+		socket.emit('alert-socket', message);
+}
 
-// async function emitToLobby(gameID, event, data = null){
-// 	//replacing emiting to a room to experiment with scope
-
-// 	//Get Players connected to this game
-// 	const queryValues = ["id", "fullname", "players", "game_id", gameID, "connected", 1];
-// 	const connectedPlayers = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ?", queryValues);
-// 	//Returns array of objects
-
-// 	//For each player connected, emit information.
-// 	let connFullnamesArr = [];
-// 	let connUserIDsArr = [];
-// 	for(i=0;i<connectedPlayers.length;i++){
-// 		connFullnamesArr.push(connectedPlayers[i].fullname);
-// 		connUserIDsArr.push(connectedPlayers[i].id);
-// 	}
-// 	for(i=0;i<connectedPlayers.length;i++){
-// 		io.to(connUserIDsArr[i]).emit(event, data);
-// 	}
-// }

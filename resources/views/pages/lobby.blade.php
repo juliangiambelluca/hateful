@@ -11,7 +11,7 @@
   <title>Game Lobby</title>
 
 
-  <link href="{{ URL::to('css/bootstrap.css') }}" rel="stylesheet">
+  <link href="{{ URL::to('css/app.css') }}" rel="stylesheet">
 
   <link href="{{ URL::to('css/game.css') }}" rel="stylesheet">
 
@@ -24,7 +24,7 @@
 
 
 <body>
-  <nav class="navbar navbar-dark bg-dark d-block p-0 shadow">
+  <nav class="navbar navbar-dark bg-dark d-block p-0 ">
 
     <div class="row d-sm-flex pt-1 pl-2" style="width: 100%; ">
 
@@ -46,7 +46,7 @@
                   <div class="row">
                     <div class="col-md-6">
                       <h5>game link:</h5>
-                      <h6>hateful.io/{{$response["gameHash"]}}</h6>
+                      <h6>hateful.io/{{ $response["gameHash"] }}</h6>
                     </div>
                     <div class="col-md-6">	
                       <h5>game password:</h5>
@@ -95,20 +95,17 @@
 <input type="hidden" id="new-host" name="new-host" value="{{ session('userID') }}">
 </form>
 
-    <script src="{{ URL::to('js/jquery.js') }}"></script>
+    <script src="{{ URL::to('js/app.js') }}"></script>
 
-    <script src="{{ URL::to('js/bootstrap.js') }}"></script>
-
-    <script src="{{ URL::to('js/bootstrap.bundle.js') }}"></script>
-
-    <script src="{{ asset('js/socket.io.js') }}"></script>
-
+    <!-- <script src="{{ asset('socket.io/socket.io.js') }}"></script> -->
+	<script src="https://cdn.jsdelivr.net/npm/socket.io-client@2/dist/socket.io.js"></script>
 
     <script>
         //on page load
         $(function () {
 		const socket = io('http://127.0.0.1:3000');
-          //User inputs in session have already been sanitised. @json laravel blade directive not working for me.
+
+          //User inputs in session have already been sanitised. json laravel blade directive not working for me.
 		  const userID = "{{session('userID')}}";
           //join this room
           socket.emit('join', userID);
@@ -129,7 +126,9 @@
 		  });
 		  
 		  socket.on('refresh', function(){
-			location.reload();
+			setTimeout(() => {
+				location.reload();
+			}, 500);
 		  });
 
 		  //Receive players in room

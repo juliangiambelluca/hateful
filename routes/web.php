@@ -44,6 +44,7 @@ use Illuminate\Http\Request;
             'uses' => 'GameController@lobbyOrGame',
             'as' => 'lobby-or-game'
         ]);
+        
     });
    
 

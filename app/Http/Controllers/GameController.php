@@ -69,18 +69,33 @@ class GameController extends Controller
         }
     }
 
-
+    // public function attributes()
+    // {
+    //     return [
+    //         'input-name' => 'Name',
+    //     ];
+    // }
 
     public function createGame(Request $request){
         //Validate Inputs
         $attributeNames = array(
-            'input-name' => 'Name'
+            'input-name' => 'Name',
         );
         $customMessages = array();
         $rules = array(
-            'input-name' => 'required|min:3|max:32'
+            'input-name' => 'required|min:3|max:32',
         );
         $this->validate($request, $rules, $customMessages, $attributeNames);
+        
+        // $validateName = $request->input('input-name');
+        // if ( ($validateName=="") || (strlen($validateName) <= 3) || (strlen($validateName) >= 32) ) {
+        //     $response = array(
+        //         "result" => "input-error"
+        //     );
+    
+        //     return ($response);
+        // }
+
 
         //sanitise input
         $inputFullname = htmlspecialchars($request->input('input-name'));

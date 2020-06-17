@@ -385,7 +385,7 @@ color: rgba(0, 0, 0, 0.6);
 
 .active {
   background-color: black;
-  border-radius: 10px;
+  border-radius: 150px;
 }
 .active i {
   color: gold;
@@ -424,6 +424,7 @@ color: rgb(73, 73, 73);
 }
  @media screen and (orientation:landscape) { 
   #write-answer-modal-dialog, #write-answer-modal-content {
+    
     height: 90% !important;
     margin: auto;
   } 
@@ -448,10 +449,16 @@ color: rgb(73, 73, 73);
 }
 
 #write-answer-modal-dialog .close {
+
   text-align: right;
-  margin-top: 0px;
+  /* margin-top: 0px; */
+  /* float: right; */
+  position: absolute;
+  right: 0px;
+  /* top: 15px; */
   margin-right: 10px;
-  margin-bottom: -25px;
+  /* width: 25%; */
+  /* margin-bottom: -25px; */
   z-index: 900;
   color: black;
 }
@@ -470,4 +477,11 @@ textarea, textarea:focus {
   box-shadow: none !important;
 
   resize: none !important; /*remove the resize handle on the bottom right*/
+}
+
+
+
+#game-state-display {
+  opacity: 0;
+  transition: 0.2s
 }
