@@ -1,4 +1,5 @@
 const fs = require('fs');
+const path = require("path");
 
 // Setup MySQL
 const mysql = require('mysql');
@@ -152,7 +153,7 @@ let notify = io.on('connection', (socket) => {
 			switch ("waiting-for-question") {
 				case "waiting-for-question":
 					try {
-						var data = fs.readFileSync('C:\\Users\\julia\\hateful\\hateful\\game-states\\player-wait-for-question.html', 'utf8');
+						var data = fs.readFileSync(path.resolve(__dirname, "game-states/player-wait-for-question.html"), 'utf8');
 						console.log("File read")
 						// setTimeout(() => {
 							
