@@ -11,12 +11,12 @@
 
 
     <!-- Bootstrap core CSS -->
-    <link href="{{ URL::to('css/bootstrap.css') }}" rel="stylesheet">
+    <link href="{{ URL::to('css/app.css') }}" rel="stylesheet">
+    <script src="{{ URL::to('js/app.js') }}"></script>
 
-    <script src="{{ URL::to('js/jquery.js') }}"></script>
-
-    <script src="{{ URL::to('js/bootstrap.js') }}"></script>
     <!-- Custom styles for this template -->
+    <link href="{{ URL::to('css/signin.css') }}" rel="stylesheet">
+
 <style>
     html,
   body {
@@ -109,19 +109,20 @@
         @endif
 
         <!-- DYNAMIC PASSWORD FIELD IF NECESSARY -->
+        <div class="form-group" style="text-align: left !important">
         @if($response["gameExists"] === true)
         <br>
-          <label for="input-password" class="sr-only">Game Password</label>
-          <input type="password" id="input-password" name="input-password" class="form-control" placeholder="Game Password" required>
+          <label for="input-password" class="ml-1" >Game Password.</label>
+          <input type="input" id="input-password" name="input-password" class="form-control" placeholder="6 Characters." required>
        @endif
 
       <br>
       
       <!-- Input name, Hidden Game ID & CSRF -->
-      <label for="input-name" class="sr-only">Please enter your full name.</label>
-      <input type="input" name="input-name" id="input-name" class="form-control" placeholder="Enter your full name." required autofocus>
+      <label for="input-name" class="ml-1">Your full name.</label>
+      <input type="input" name="input-name" id="input-name" class="form-control" placeholder="Up to 32 Characters." required autofocus>
 	  <input type="hidden" id="game-id" name="game-hash" value="{{ $response['gameHash'] ?? '' }}">
-      
+    </div>
 
 
       <!-- Disclaimers -->
@@ -198,16 +199,17 @@ function joinGame(){
   	const sendPackage= () => {
       	return new Promise((resolve, reject) => {
           	$.ajax({
+              
 				url: "{{ route('join-game') }}",
         method: 'POST',
-				dataType: "text",
+				dataType: "JSON",
 				data: setInputs,
 				success: function (response) {
 				$( "#debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
 					resolve(response);
 				},
 				error: function (response) {
-				 $( "#debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
+				 $( "#debug" ).html("Error! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
 					reject(response);
 				},
          	});
@@ -216,19 +218,17 @@ function joinGame(){
 	sendPackage().then(response => {
     
 			$("#input-error-alert").fadeOut(50);
-		//Get resposnse
-		let setResponseObj = JSON.parse(response);
 
-		switch(setResponseObj.result) {
-		case "canaccess":
+		switch(response.result) {
+		case "can-access":
 			window.location.href = "{{ route('lobby-or-game') }}";
 			break;
 		case "password":
       //Password incorrect
 			$("#input-error-alert").fadeIn(450);
-			$( "#input-errors" ).html(`Password is invalid. You've got ${ 5 - setResponseObj.failedLoginAttempts } attempt(s) left before you get locked out for 2 minutes.`);
+			$( "#input-errors" ).html(`Password is invalid. You've got ${ 5 - response.failedLoginAttempts } attempt(s) left before you get locked out for 2 minutes.`);
       break;
-		case "gameNotFound":
+		case "game-not-found":
       //Game no longer exists
       $("#input-error-alert").fadeIn(450);
 			$( "#input-errors" ).html(`We can't find that game. Make sure link is correct and that game hasn't ended.`);
@@ -249,7 +249,7 @@ function joinGame(){
       location.reload();
 		}
 		if(response.status===422) {
-			let errorMsgsObj = JSON.parse(response.responseText);
+			let errorMsgsObj = response.responseJSON.errors;
 
 			//Fade in alert container 
 			$("#input-error-alert").fadeIn(450);
@@ -265,6 +265,9 @@ function joinGame(){
 		}
 	});
 }
+
+
+
 function createGame(){
   event.preventDefault()
 
@@ -281,27 +284,29 @@ function createGame(){
           	$.ajax({
 				url: "{{ route('create-game') }}",
         method: 'POST',
-				dataType: "text",
+				dataType: "JSON",
 				data: setInputs,
 				success: function (response) {
 				$( "#debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
 					resolve(response);
 				},
 				error: function (response) {
-				 $( "#debug" ).html("Success! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
+				 $( "#debug" ).html("Error! Response:<br>" + response + "<br><br>******<br><br>" + response.responseText);
 					reject(response);
 				},
          	});
         });
 	}
 	sendPackage().then(response => {
-		//Get resposnse
-		let setResponseObj = JSON.parse(response);
 
-		switch(setResponseObj.result) {
+		switch(response.result) {
 		case "lobby":
 			window.location.href = "{{ route('lobby') }}";
 			break;
+    case "input-error":
+      $("#input-error-alert").fadeIn(450);
+			$( "#input-errors" ).html("Please enter your full name up to 32 characters.");
+      break;
     default:  
      //Unexpected response
       $("#input-error-alert").fadeIn(450);
@@ -314,7 +319,7 @@ function createGame(){
 		}
     //If data validation fails, Laravel responds with status code 422 & Error messages in JSON.
 		if(response.status===422) {
-			let errorMsgsObj = JSON.parse(response.responseText);
+			let errorMsgsObj = response.responseJSON.errors
 
 			//Fade in alert container 
 			$("#input-error-alert").fadeIn(450);

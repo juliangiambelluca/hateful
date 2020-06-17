@@ -10,29 +10,35 @@
     <title>@yield('title')</title>
 
 
-    <link href="{{ URL::to('css/bootstrap.css') }}" rel="stylesheet">
+    <link href="{{ URL::to('css/app.css') }}" rel="stylesheet">
     
     <link href="{{ URL::to('css/game.css') }}" rel="stylesheet">
-
-    <script src="https://kit.fontawesome.com/d5ff43701b.js" crossorigin="anonymous"></script>
-
-    <script src="{{ URL::to('js/jquery.js') }}"></script>
-
-    <script src="{{ URL::to('js/bootstrap.js') }}"></script>
-
-    <script src="{{ URL::to('js/bootstrap.bundle.js') }}"></script>
 
   </head>
 
 
   <body>
-  @include('partials.topbar')
-  
+  <!-- include('partials.topbar') -->
+  <nav class="navbar navbar-dark bg-dark d-block p-0 ">
+
+<div class="row d-sm-flex pt-1 pl-2" style="width: 100%; ">
+
+  <div class="col-12  col-md-4  col-lg-3  text-white " ><h4 class="m-2" style="font-weight: 800"> hateful. [beta]</h4></div>  
+
+</nav>
+
 <div class="content-fluid">
   <div class="row" style="width: 100%">
-  @include('partials.sidebar')
-  @yield('content')
+    @include('partials.sidebar')
+<script src="{{ URL::to('js/app.js') }}"></script>
+
+    @yield('content')
   </div>
 </div>
+
+
+
+<script src="https://kit.fontawesome.com/d5ff43701b.js" crossorigin="anonymous"></script>
+
   </body>
 </html>

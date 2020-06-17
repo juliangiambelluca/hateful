@@ -17,9 +17,14 @@ class checkPlayerSession
     public function handle($request, Closure $next)
     {
         
-        $game = DB::table('players')->where('session', '=', session('sessionToken'))->first(); 
-        
-        if (isset($game)) {
+        $player = DB::table('players')->where('session', '=', session('sessionToken'))->first(); 
+        //Make sure everyone has the is master information before they enter lobby or game
+        if (isset($player)) {
+            if($player->ismaster==1){
+                session(['isMaster' => true]);
+            } else {
+                session(['isMaster' => false]);
+            }
             return $next($request);
         } else {
             return redirect('/new-game');

@@ -7,7 +7,7 @@
     <meta name="description" content="">
     <meta name="author" content="">
 
-    <title>Temporarily banned.</title>
+    <title>404</title>
 
 
     <!-- Bootstrap core CSS -->
@@ -71,20 +71,11 @@
             Page not found.
           </h2>
          
-          @if(strpos($response, "TOO_MANY_LOGIN_ATTEMPTS_GET_YOU_BANNED"))  
-          <h4 class="h4 mb-3 mt-5 font-weight-normal">
-           You are temporarily banned
-          </h4>
-          <small>You may return and try again in {{ session('bannedUntil') - time()  }} seconds.</small>
-          <br>
-          <small>You failed {{ session('failedLoginAttempts')-1 }} login attempts.</small>
-          @else
           <h4 class="h4 mb-3 mt-5 font-weight-normal">
            Well done mate!<br>
            You broke it.
           </h4>
-          <a class="btn btn-md btn-secondary btn-block" href="{{ route('homepage') }}">Go back to the homepage</a>        
-          @endif
+          <a class="btn btn-md btn-secondary btn-block" href="{{ route('homepage') }}">Go back to the homepage</a>      
     </form>
   </body>
 </html>

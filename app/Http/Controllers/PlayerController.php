@@ -12,6 +12,12 @@ use Illuminate\Support\Facades\Crypt;
 class PlayerController extends Controller
 {   
 
+    public function updateHost($newHostID){
+        session(['isMaster' => true]);
+        return;
+    }
+
+
     public function joinGame(Request $request){
          //Validate Inputs
          $attributeNames = array(
@@ -26,27 +32,32 @@ class PlayerController extends Controller
         $this->validate($request, $rules, $customMessages, $attributeNames);
         //Validation END
 
+        //Sanitise inputs
+        //Generated Password and Hash will never contain special characters under normal/safe circumstances.
+        $inputGameHash = htmlspecialchars($request->input('game-hash'));
+        $inputFullname = htmlspecialchars($request->input('input-name'));
+        $inputPassword = htmlspecialchars($request->input('input-password'));
+               
+        //init login attempts
+        $loginAttempts = 0;
+
         //Check if game exists
-        $gameHash = $request->input('game-hash');
-        $oldGame = Game::where('hash', '=', $gameHash)->first(); 
+        $oldGame = Game::where('hash', '=', $inputGameHash)->first(); 
         if (isset($oldGame->id)){
             //Game exists
 
             //Check password
             $gamePassword = $oldGame->password;
-            // $inputPassword = Hash::make($request->input('input-password'));
-            $inputPassword = ($request->input('input-password'));
             if ($inputPassword === $gamePassword) {
                 // The passwords match...
 
                 //Create New Player
-                $encryptedName = Crypt::encryptString($request->input('input-name'));
                 //HOW TO DECRYPT: $decrypted = Crypt::decryptString($encrypted);
                 $newSessionToken = Hash::make(rand());
                 $player = new Player([
-                    'fullname' => $encryptedName,
-                    'game_id' => $oldGame->id,
+                    'fullname' => $inputFullname,
                     'session' => $newSessionToken,
+                    'connected' => false,
                     'ismaster' => 0
                 ]);
                 //Save new player in relation to this game.
@@ -55,11 +66,12 @@ class PlayerController extends Controller
                 
                 //Store Necessary details in session
                 session(['gameID' => $oldGame->id]);
-                session(['gameHash' => $gameHash]);
+                session(['gameHash' => $inputGameHash]);
                 session(['gamePassword' => $oldGame->password]);
+                session(['fullname' => $player->fullname]);
                 session(['userID' => $player->id]);
+                session(['isMaster' => false]);
                 session(['sessionToken' => $player->session]);
-                
                 session(['failedLoginAttempts' => 0]);
                 session(['bannedUntil' => 0]);
                 
@@ -68,7 +80,7 @@ class PlayerController extends Controller
             } else {
                 //Passwords did not match
                 $result = "password";
-
+ 
                 //Using php session so web routes has access.
                 if ($request->session()->has('failedLoginAttempts')) {
                     
@@ -90,7 +102,7 @@ class PlayerController extends Controller
 
         } else {
             //Game does not exist
-            $result = "gameNotFound";
+            $result = "game-not-found";
         }
         //Game exist if end
 

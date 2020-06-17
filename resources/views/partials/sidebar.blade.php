@@ -19,7 +19,7 @@
 							<div class="d-flex bd-highlight">
 								<div class="user_info">
 									<span>game link:</span>
-									<p>hateful.io/23rde</p>
+									<p>hateful/fb0c61</p>
 								</div>
 							</div>
             </li>
@@ -27,7 +27,7 @@
 							<div class="d-flex bd-highlight">
 								<div class="user_info">
 									<span>game password:</span>
-									<p>fanny-fart</p>
+									<p>4f0aed</p>
 								</div>
 							</div>
 						</li>
@@ -38,7 +38,7 @@
 									<span class="online_icon"></span>
 								</div>
 								<div class="user_info">
-                <span> <i class="fas fa-crown"></i> john cena</span>
+                <span> <i class="fas fa-crown"></i> John cena</span>
 									<p>Sam</p>
 								</div>
 							</div>
@@ -50,7 +50,7 @@
 									<span class="online_icon offline"></span>
 								</div>
 								<div class="user_info">
-									<span>carole baskin</span>
+									<span>Carole baskin</span>
 									<p>George</p>
 								</div>
 							</div>
@@ -74,8 +74,7 @@
 									<span class="online_icon offline"></span>
 								</div>
 								<div class="user_info">
-									<span>nipple twister</span>
-									<p>Rashid</p>
+									<span>John Doe</span>
 								</div>
 							</div>
             </li>
@@ -86,8 +85,7 @@
 									<span class="online_icon offline"></span>
 								</div>
 								<div class="user_info">
-									<span>nipple twister</span>
-									<p>Rashid</p>
+									<span>John Doe</span>
 								</div>
 							</div>
             </li>
@@ -98,8 +96,7 @@
 									<span class="online_icon offline"></span>
 								</div>
 								<div class="user_info">
-									<span>nipple twister</span>
-									<p>Rashid</p>
+									<span>John Doe</span>
 								</div>
 							</div>
             </li>
@@ -110,8 +107,7 @@
 									<span class="online_icon offline"></span>
 								</div>
 								<div class="user_info">
-									<span>nipple twister</span>
-									<p>Rashid</p>
+									<span>John Doe</span>
 								</div>
 							</div>
             </li>
@@ -122,8 +118,7 @@
 									<span class="online_icon offline"></span>
 								</div>
 								<div class="user_info">
-									<span>nipple twister</span>
-									<p>Rashid</p>
+									<span>John Doe</span>
 								</div>
 							</div>
             </li>
@@ -134,8 +129,7 @@
 									<span class="online_icon offline"></span>
 								</div>
 								<div class="user_info">
-									<span>nipple twister</span>
-									<p>Rashid</p>
+									<span>John Doe</span>
 								</div>
 							</div>
             </li>
@@ -146,8 +140,7 @@
 									<span class="online_icon offline"></span>
 								</div>
 								<div class="user_info">
-									<span>nipple twister</span>
-									<p>Rashid</p>
+									<span>John Doe</span>
 								</div>
 							</div>
 						</li>

@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Player extends Model
 {
-    protected $fillable = ['fullname', 'score', 'game_id', 'ismaster', 'session'];
+    protected $fillable = ['fullname', 'score', 'game_id', 'ismaster', 'connected', 'session'];
     //
     public function game(){
         return $this->belongsTo('App\Game');

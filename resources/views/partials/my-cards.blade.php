@@ -34,7 +34,8 @@
           <div class="card game-card answer-card  ">
             <div class="card-body game-card-body p-2">
               <div class="card-text-answer">
-              Poorly-timed Holocaust jokes.
+              
+              Kanye West.
               </div>
             </div>
           </div>
@@ -71,7 +72,8 @@
           <div class="card game-card answer-card  ">
             <div class="card-body game-card-body p-2">
               <div class="card-text-answer">
-              Kanye West.
+              
+              Poorly-timed Holocaust jokes.
               </div>
             </div>
           </div>

@@ -44,6 +44,7 @@ use Illuminate\Http\Request;
             'uses' => 'GameController@lobbyOrGame',
             'as' => 'lobby-or-game'
         ]);
+        
     });
    
 
@@ -53,7 +54,11 @@ use Illuminate\Http\Request;
         'as' => 'join-game'
     ]);
     
-    
+
+    Route::post('/uh/', [
+        'uses' => 'PlayerController@updateHost',
+        'as' => 'update-host'
+    ]);
     
 
     
