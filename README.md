@@ -1,3 +1,10 @@
+## hateful
+A blatent rip-off of Cards Against Humanity, but you can write your own cards and roast your friends.
+
+Under Development
+
+
+
 <p align="center"><img src="https://res.cloudinary.com/dtfbvvkyp/image/upload/v1566331377/laravel-logolockup-cmyk-red.svg" width="400"></p>
 
 <p align="center">
