@@ -1,9 +1,13 @@
 
-    <nav class="col-md-3 col-lg-2 d-none d-md-block bg-light ">
+    <nav class="col-md-3 col-lg-2 d-none d-md-block bg-light " style="
+	height: 100vh;
+    overflow-y: scroll;
+    top: -50px;
+    z-index: 0;">
       <div class="">
       
           <div>
-          <div class="card-body contacts_body p-2">
+          <div class="card-body contacts_body p-2" style="margin-top:50px;">
 
 						<ui class="contacts">
 						<li class="game-password" style="margin-bottom: 0px!important;">
