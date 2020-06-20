@@ -6,12 +6,16 @@ play hateful
 
 @section('content')
 
+<div class="col-md-9 col-lg-10" style="height: 90vh">
 
 <div id="game-state-display">
 
 
 
 </div>
+
+</div>
+
 
 	<script src="https://cdn.jsdelivr.net/npm/socket.io-client@2/dist/socket.io.js"></script>
    
