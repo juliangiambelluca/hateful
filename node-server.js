@@ -202,26 +202,22 @@ let notify = io.on('connection', (socket) => {
 		//Update round with chosen question
 		mysqlUpdate("rounds", "question_id", questionID, "game_id", socket.gameID)
 		
-		//Score question against offered questions
+				//Score question against offered questions
 
 		//Select latest round
 		const queryValues = ["id", "rounds", "game_id", socket.gameID, "created_at"];
 		const roundID = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? ORDER BY ?? DESC LIMIT 1", queryValues);
-	
-		//Select all question id's from round_question
-		const offeredQuestions = await mysqlSelect("score", "round_question", "round_id", roundID[0].id )
 
-		const chosenQuestionScore = await mysqlSelect("score", "questions", "id", questionID)
+		//Select all offered questions data
+		queryValues = ["id", "score", "round_question", "round_id", roundID[0].id];
+		const offeredQuestions = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? ORDER BY ?? DESC", queryValues);
 
-		let offeredQuestionsTotalScore;
-		for(i=0;i<offeredQuestions.length;i++){
-			offeredQuestionsTotalScore += offeredQuestions[i].score
-			//calculate score for each losing card against chose card
-		}
-		
-		offeredQuestionsScoreAVG = offeredQuestionsTotalScore / offeredQuestions.length;
+		//Select winning question data
+		queryValues = ["id", "score", "questions", "id", questionID];
+		const chosenQuestion = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ?", queryValues);
 
-		//calculate chosen card score against average of cards offered.
+		scoreCard(chosenQuestion, offeredQuestions, "questions");
+
 
 	});
 
@@ -465,6 +461,36 @@ async function getMasterQuestions(socket) {
 	socket.emit("load-new-state", data);
 
 
+
+
+}
+
+
+
+
+
+async function scoreCard(winnerCard, offeredCards, table) {
+	
+	
+		let offeredQuestionsTotalScore = 0;
+		let winProbability = 0;
+		let newRating = 0;
+		for(i=0;i<offeredCards.length;i++){
+			offeredQuestionsTotalScore += offeredCards[i].score;
+			//calculate score for each losing card against chose card
+			//Calculate Probability of current card winning against winner:
+			winProbability = 1 / ( 1 + 10^((winnerCard[0].score - offeredCards[i].score)/400));
+			newRating = offeredCards[i].score + (32*(0 - winProbability));
+			mysqlUpdate(table, "score", newRating, "id", offeredCards[i].id);
+		}
+
+		//Calculate average score, excluding the chosen card.
+		offeredCardsScoreAVG = (offeredQuestionsTotalScore - winnerCard[0].score) / (offeredCards.length - 1);
+		//calculate chosen card score against average of cards offered.
+
+		winProbability = 1 / ( 1 + 10^((offeredCardsScoreAVG - winnerCard[0].score)/400));
+		newRating = offeredCards[i].score + (32*(1 - winProbability));
+		mysqlUpdate(table, "score", newRating, "id", winnerCard[0].id);
 
 
 }
