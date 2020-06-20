@@ -19,16 +19,16 @@
 
   <body>
   <!-- include('partials.topbar') -->
-  <nav class="navbar navbar-dark bg-dark d-block p-0 ">
+  <nav class="navbar navbar-dark bg-dark d-block p-0 " style="z-index: 999">
 
-<div class="row d-sm-flex pt-1 pl-2" style="width: 100%; ">
+<div class="row d-sm-flex pt-1 pl-2" style="width: 100%; height:50px; ">
 
   <div class="col-12  col-md-4  col-lg-3  text-white " ><h4 class="m-2" style="font-weight: 800"> hateful. [beta]</h4></div>  
 
 </nav>
 
 <div class="content-fluid">
-  <div class="row" style="width: 100%">
+  <div class="row" style="width: 100%; height: 90vh;">
     @include('partials.sidebar')
 <script src="{{ URL::to('js/app.js') }}"></script>
 
