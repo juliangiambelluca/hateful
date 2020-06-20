@@ -128,7 +128,7 @@ let notify = io.on('connection', (socket) => {
 			
 			//For each player, set their new game state.
 			//updatePlayerState(gameID, masterState, playerState)
-			updatePlayerStates(gameID, "needs-questions", "waiting-for-question")
+			updatePlayerStates(gameID, "master-needs-questions", "player-waiting-for-question")
 
 			//Tell everyone to refresh so laravel loads the game view.
 			setTimeout(() => {
@@ -145,7 +145,7 @@ let notify = io.on('connection', (socket) => {
 			console.log(socket.userID + "'s state is: " + userState);
 
 			switch (userState) {
-				case "waiting-for-question":
+				case "player-waiting-for-question":
 					try {
 						var data = fs.readFileSync(path.resolve(__dirname, "game-states/player-wait-for-question.html"), 'utf8');
 						console.log("File read")
@@ -157,16 +157,18 @@ let notify = io.on('connection', (socket) => {
 						console.log('Error:', e.stack);
 					}
 					break;
-				case "needs-questions":
+				case "master-needs-questions":
 					getMasterQuestions(socket);
+					break;
+				case "master-choosing-question":
+					getMasterQuestions(socket);
+					break;
+				case "master-waiting-for-answers":
+					break;
+				case "player-choosing-answer":
 					break;
 				case "choosing-question":
-					getMasterQuestions(socket);
-					
 					break;
-				// case value:
-					
-				// 	break;
 			
 				default:
 					break;
@@ -179,7 +181,7 @@ let notify = io.on('connection', (socket) => {
 
 	});
 
-	socket.on('picked-question', (dirtyQuestionID) => {
+	socket.on('master-picked-question', (dirtyQuestionID) => {
 		
 		//If question id has more than 10 digits it's definetely invalid!
 		if (dirtyQuestionID.length < 10){
@@ -217,6 +219,8 @@ let notify = io.on('connection', (socket) => {
 		const chosenQuestion = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ?", queryValues);
 
 		scoreCard(chosenQuestion, offeredQuestions, "questions");
+
+		updatePlayerStates(socket.gameID, "master-waiting-for-answers", "player-choosing-answer")
 
 
 	});
@@ -456,7 +460,7 @@ async function getMasterQuestions(socket) {
 	</div>
 	`
 
-	updatePlayerStates(socket.gameID, "choosing-question")
+	updatePlayerStates(socket.gameID, "master-choosing-question")
 
 	socket.emit("load-new-state", data);
 
