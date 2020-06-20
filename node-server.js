@@ -111,40 +111,24 @@ let notify = io.on('connection', (socket) => {
 			//Make sure this user is actually master otherwise request refresh.
 			if (isMaster==1){
 				console.log("Is Master, Starting Game!")
-				startGame(gameID, userID);
+				startGame(gameID);
 			} else {
 				//This shouldn't happen. Make user refresh page because something is up.
 				requestRefresh();
 			}
 		}
 			
-		async function startGame(gameID, userID){
+		async function startGame(gameID){
 
-			//Apply appropiate game states
+			//Start round
+			const queryValues = ["rounds", "game_id", gameID];
+			await mysqlCustom("INSERT INTO ?? (??) VALUES (??)", queryValues);
+			
 			await mysqlUpdate("games", "started", 1, "id", gameID);
 			
 			//For each player, set their new game state.
-			
-			const queryValues = ["id", "ismaster", "players", "game_id", gameID, "connected", 1, ];
-			const queryResult = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? ", queryValues);
-			
-			console.log("queryResult from is " + queryResult);
-
-			//Returns array of objects
-			
-
-			let currentPlayerID;
-			let currentPlayerMaster;
-			for(i=0;i<queryResult.length;i++){
-				currentPlayerID = queryResult[i].id;
-				currentPlayerMaster = queryResult[i].ismaster;
-				console.log("Iteration of start game state loop. Current user: " + currentPlayerID);
-				if (currentPlayerMaster == 1){
-					mysqlUpdate("players", "state", "needs-questions", "id", currentPlayerID);
-				} else {
-					mysqlUpdate("players", "state", "waiting-for-question", "id", currentPlayerID);
-				}
-			}
+			//updatePlayerState(gameID, masterState, playerState)
+			updatePlayerStates(gameID, "needs-questions", "waiting-for-question")
 
 			//Tell everyone to refresh so laravel loads the game view.
 			setTimeout(() => {
@@ -174,10 +158,10 @@ let notify = io.on('connection', (socket) => {
 					}
 					break;
 				case "needs-questions":
-					getMasterQuestions(socket.userID);
+					getMasterQuestions(socket);
 					break;
 				case "choosing-question":
-					getMasterQuestions(socket.userID);
+					getMasterQuestions(socket);
 					
 					break;
 				// case value:
@@ -194,6 +178,53 @@ let notify = io.on('connection', (socket) => {
 
 
 	});
+
+	socket.on('picked-question', (dirtyQuestionID) => {
+		
+		//If question id has more than 10 digits it's definetely invalid!
+		if (dirtyQuestionID.length < 10){
+			try {
+				//If it can't be parsed into an integer it's also definetely invalid!
+				const questionID = parseInt(dirtyQuestionID);
+			  }
+			  catch(err) {
+				console.log("Invalid picked question ID!")
+				return;
+			  }
+		} else {
+			return;
+		}
+
+		if (socket.userID == null) {
+			return;
+		}
+
+		//Update round with chosen question
+		mysqlUpdate("rounds", "question_id", questionID, "game_id", socket.gameID)
+		
+		//Score question against offered questions
+
+		//Select latest round
+		const queryValues = ["id", "rounds", "game_id", socket.gameID, "created_at"];
+		const roundID = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? ORDER BY ?? DESC LIMIT 1", queryValues);
+	
+		//Select all question id's from round_question
+		const offeredQuestions = await mysqlSelect("score", "round_question", "round_id", roundID[0].id )
+
+		const chosenQuestionScore = await mysqlSelect("score", "questions", "id", questionID)
+
+		let offeredQuestionsTotalScore;
+		for(i=0;i<offeredQuestions.length;i++){
+			offeredQuestionsTotalScore += offeredQuestions[i].score
+			//calculate score for each losing card against chose card
+		}
+		
+		offeredQuestionsScoreAVG = offeredQuestionsTotalScore / offeredQuestions.length;
+
+		//calculate chosen card score against average of cards offered.
+
+	});
+
 
 	socket.on('disconnect', () => {
 		if (socket.userID != null) {
@@ -220,7 +251,6 @@ let notify = io.on('connection', (socket) => {
 					console.log("Players Left obj: " + JSON.stringify(playersLeft));
 				
 					if(playersLeft.length!==0){
-						//LAST EXCEPTION CAUGHT HERE. CANNOT READ PROPERTY ON UNDEFINED. fixed?
 						const newHost = [playersLeft[0].id, playersLeft[0].fullname];
 						console.log("newHostArr=" + JSON.stringify(newHost))
 
@@ -358,7 +388,28 @@ function alertSocket(socket, message){
 }
 
 
-async function getMasterQuestions(userID) {
+async function updatePlayerStates(gameID, masterState = null, playerState = null){
+
+	const queryValues = ["id", "ismaster", "players", "game_id", gameID, "connected", 1, ];
+	const queryResult = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? ", queryValues);
+	//Returns array of objects
+	
+	let currentPlayerID;
+	let currentPlayerMaster;
+	for(i=0;i<queryResult.length;i++){
+		currentPlayerID = queryResult[i].id;
+		currentPlayerMaster = queryResult[i].ismaster;
+		if (currentPlayerMaster == 1 && masterState !== null){
+			await mysqlUpdate("players", "state", masterState, "id", currentPlayerID);
+		} 
+		if (playerState !== null) {
+			await mysqlUpdate("players", "state", playerState, "id", currentPlayerID);
+		}
+	}
+}
+
+
+async function getMasterQuestions(socket) {
 	//Select 3 from questions table where score 
 
 	let queryValues = ["score", "questions"];
@@ -368,20 +419,52 @@ async function getMasterQuestions(userID) {
 	averageScore = Object.values(averageScore[0]);
 	averageScore = parseInt(averageScore);
 
+	//Select latest round
+	const queryValues = ["id", "rounds", "game_id", socket.gameID, "created_at"];
+	const roundID = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? ORDER BY ?? DESC LIMIT 1", queryValues);
 	
-	queryValues = ["question", "questions", "score", averageScore];
-	let topRandonQuestions = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? >= ? ORDER BY RAND() LIMIT 5", queryValues);
-	let lowRandomQuestions = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? <= ? ORDER BY RAND() LIMIT 3", queryValues);
-	let questionsObjects = topRandonQuestions;
-	questionsObjects = questionsObjects.concat(lowRandomQuestions);
-	let questions= [];
-	for(i=0;i<questionsObjects.length;i++){
-		questions.push(questions[i].question);
+
+	queryValues = ["id", "question", "questions", "score", averageScore];
+	let topRandonQuestions = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? >= ? ORDER BY RAND() LIMIT 5", queryValues);
+	let lowRandomQuestions = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? <= ? ORDER BY RAND() LIMIT 3", queryValues);
+	let questions = topRandonQuestions;
+	questions = questions.concat(lowRandomQuestions);
+
+	//Make data for new game state
+	let questionsInsert = "";
+	for(i=0;i<questions.length;i++){
+		//Log offered questions for question card scoring later.
+		const queryValues = ["round_question", "round_id", "question_id", roundID[0].id, questions[i].id];
+		mysqlCustom("INSERT INTO ?? (??, ??) VALUES (??, ??)", queryValues);
+
+		questionsInsert += `
+		<a onclick="pickQuestion(${questions[i].id})" href="#">
+		<div class="card game-card answer-card  ">
+		   <div class="card-body game-card-body p-2">
+			  <div class="card-text-answer">
+				  ${questions[i].question}
+			  </div>
+		   </div>
+		 </div>
+		</a>
+		`
 	}
 
-	await mysqlUpdate("players", "state", "choosing-question", "id", userID);
+	let data = `
+	<div class="row mt-2">
+    <div class="col-12 p-0">
+        <div class="x-scrolling-wrapper pl-4">
+            ${questionsInsert}
+        </div>
+    </div>
+	</div>
+	`
 
-	socket.emit('questions', questions);
+	updatePlayerStates(socket.gameID, "choosing-question")
 
-	//Returns array of objects
+	socket.emit("load-new-state", data);
+
+
+
+
 }
