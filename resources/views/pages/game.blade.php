@@ -85,9 +85,8 @@ play hateful
 
 
 
-
 	});
-		
+
 	function displayNameCards(players){
 
 			let render = "";
@@ -114,7 +113,13 @@ play hateful
 			$("#name-cards").html(render);
 	}
 
+	//Game Functions
 
+	function pickQuestion(questionID){
+
+		socket.emit("picked-question", questionID);
+
+	}
 </script>
 
 
