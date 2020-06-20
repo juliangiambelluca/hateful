@@ -117,7 +117,7 @@ play hateful
 
 	function pickQuestion(questionID){
 
-		socket.emit("picked-question", questionID);
+		socket.emit("master-picked-question", questionID);
 
 	}
 </script>
