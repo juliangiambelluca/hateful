@@ -3,6 +3,7 @@ const path = require("path");
 
 // Setup MySQL
 const mysql = require('mysql');
+const { Console } = require('console');
 const pool = mysql.createPool({
     connectionLimit : 100, //important
     host     : '127.0.0.1',
@@ -56,10 +57,11 @@ let notify = io.on('connection', (socket) => {
 				//Every user will have their own room as session scope seems to be room-based.
 
 
-				socket.userdata = [gameID, userID];
+				socket.gameID = gameID;
+				socket.userID = userID;
 				// socket.handshake.session.save();
 
-				console.log("socket user data says " + socket.userdata)
+				console.log("Node Session data says - Game ID:" + socket.gameID + " User ID:" + socket.userID)
 				//if they return after leaving within 10 seconds, stop db from updating them to disconnected.
 				if (timeoutUserIDPivot.includes(userID)) {
 					const timeoutRow = timeoutUserIDPivot.indexOf(userID);
@@ -97,9 +99,9 @@ let notify = io.on('connection', (socket) => {
 	});
 	
 	socket.on('start-game', async function(){
-		if(socket.userdata){
-			const gameID = socket.userdata[0];
-			const userID = socket.userdata[1];
+		if(socket.userID != null){
+			const gameID = socket.gameID;
+			const userID = socket.userID;
 
 			isMaster = await mysqlSelect("ismaster", "players", "id", userID);
 			//Returns array of objects
@@ -108,6 +110,7 @@ let notify = io.on('connection', (socket) => {
 
 			//Make sure this user is actually master otherwise request refresh.
 			if (isMaster==1){
+				console.log("Is Master, Starting Game!")
 				startGame(gameID, userID);
 			} else {
 				//This shouldn't happen. Make user refresh page because something is up.
@@ -121,58 +124,65 @@ let notify = io.on('connection', (socket) => {
 			await mysqlUpdate("games", "started", 1, "id", gameID);
 			
 			//For each player, set their new game state.
-			let queryResult = await mysqlSelect("ismaster", "players", "id", userID);
+			
+			const queryValues = ["id", "ismaster", "players", "game_id", gameID, "connected", 1, ];
+			const queryResult = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? ", queryValues);
+			
+			console.log("queryResult from is " + queryResult);
+
 			//Returns array of objects
 			
-			let currentConnectedPlayerID;
-			for(i=0;i<queryResult.length;i++){
-				currentConnectedPlayerID = queryResult[i].id;
 
-				if (currentConnectedPlayerID === userID){
-					//This user is host/master
-					await mysqlUpdate("players", "state", "needs-questions", "id", userID);
+			let currentPlayerID;
+			let currentPlayerMaster;
+			for(i=0;i<queryResult.length;i++){
+				currentPlayerID = queryResult[i].id;
+				currentPlayerMaster = queryResult[i].ismaster;
+				console.log("Iteration of start game state loop. Current user: " + currentPlayerID);
+				if (currentPlayerMaster == 1){
+					mysqlUpdate("players", "state", "needs-questions", "id", currentPlayerID);
 				} else {
-					await mysqlUpdate("players", "state", "waiting-for-question", "id", currentConnectedPlayerID);
+					mysqlUpdate("players", "state", "waiting-for-question", "id", currentPlayerID);
 				}
 			}
 
 			//Tell everyone to refresh so laravel loads the game view.
 			setTimeout(() => {
 				requestRefresh(gameID);
-			}, 500);
+			}, 1000);
 		}
 	});
 
 	socket.on('what-is-my-state', async function(){
-		if(socket.userdata){
-			userStateResult = await mysqlSelect("state", "players", "id", socket.userdata[1]);
+		if(socket.userID != null){
+			userStateResult = await mysqlSelect("state", "players", "id", socket.userID);
 			userState = userStateResult[0].state;
 			
-			console.log(socket.userdata[1] + "'s state is:" + userState);
+			console.log(socket.userID + "'s state is: " + userState);
 
-			switch ("waiting-for-question") {
+			switch (userState) {
 				case "waiting-for-question":
 					try {
 						var data = fs.readFileSync(path.resolve(__dirname, "game-states/player-wait-for-question.html"), 'utf8');
 						console.log("File read")
-						// setTimeout(() => {
-							
-						socket.emit("load-new-state", data);
-						// }, 1000);
+						setTimeout(() => {
+							socket.emit("load-new-state", data);
+						}, 500);
 					} catch(e) {
 						alertSocket(socket, "Sorry, we couldn't load your game. Something went wrong on our end. Please refresh the page or try again later.")
 						console.log('Error:', e.stack);
 					}
 					break;
 				case "needs-questions":
+					getMasterQuestions(socket.userID);
+					break;
+				case "choosing-question":
+					getMasterQuestions(socket.userID);
 					
 					break;
-				case value:
+				// case value:
 					
-					break;
-				case value:
-					
-					break;
+				// 	break;
 			
 				default:
 					break;
@@ -186,16 +196,14 @@ let notify = io.on('connection', (socket) => {
 	});
 
 	socket.on('disconnect', () => {
-		if (socket.userdata) {
-			console.log("There is a session: " + JSON.stringify(socket.userdata));
-			console.log("A user (" + socket.userdata[1] + ") is disconnecting");
+		if (socket.userID != null) {
+			console.log("There is a session: UserID:" + socket.userID + " GameID:" + socket.gameID);
+			console.log("A user (" + socket.userID + ") is disconnecting");
 
 			//Create set timeout to disconnect after a few seconds
-			const disconnectTimer = setTimeout(async function(userData){
+			const disconnectTimer = setTimeout(async function(userID, gameID){
 
 				console.log("disconnectTimer triggered");
-				const gameID = userData[0];
-				const userID = userData[1];
 				isMaster = await mysqlSelect("ismaster", "players", "id", userID);
 				//Returns array of objects
 				//First row, ismaster attribute.
@@ -251,15 +259,16 @@ let notify = io.on('connection', (socket) => {
 				timeouts.splice(timeoutRow, 1);
 				console.log("Deleted timeout from array as it's no longer needed.");
 
-				delete socket.userdata;
+				delete socket.userID;
+				delete socket.gameID;
 				// socket.handshake.session.save();
 				console.log("Session deleted");
 		
-			}, 10000, socket.userdata);
-			// Important to pass the userdata to the timer function!
+			}, 10000, socket.userID, socket.gameID);
+			// Important to pass the user data to the timer function!
 
 			timeouts.push(disconnectTimer);
-			timeoutUserIDPivot.push(socket.userdata[1]);
+			timeoutUserIDPivot.push(socket.userID);
 			console.log("Timer pushed.");
 
 		} else {
@@ -343,6 +352,36 @@ function requestRefresh(gameID = null){
 }
 
 function alertSocket(socket, message){
+	setTimeout(function (socket) {
 		socket.emit('alert-socket', message);
+	}, 3000, socket);
 }
 
+
+async function getMasterQuestions(userID) {
+	//Select 3 from questions table where score 
+
+	let queryValues = ["score", "questions"];
+	let averageScore = await mysqlCustom("SELECT AVG(??) FROM ??", queryValues);
+	//Returns array of objects
+
+	averageScore = Object.values(averageScore[0]);
+	averageScore = parseInt(averageScore);
+
+	
+	queryValues = ["question", "questions", "score", averageScore];
+	let topRandonQuestions = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? >= ? ORDER BY RAND() LIMIT 5", queryValues);
+	let lowRandomQuestions = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? <= ? ORDER BY RAND() LIMIT 3", queryValues);
+	let questionsObjects = topRandonQuestions;
+	questionsObjects = questionsObjects.concat(lowRandomQuestions);
+	let questions= [];
+	for(i=0;i<questionsObjects.length;i++){
+		questions.push(questions[i].question);
+	}
+
+	await mysqlUpdate("players", "state", "choosing-question", "id", userID);
+
+	socket.emit('questions', questions);
+
+	//Returns array of objects
+}
