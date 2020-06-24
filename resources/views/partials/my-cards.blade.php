@@ -1,7 +1,7 @@
-<div class="row mt-2">
+<div class="row mt-4 mb-5">
        <div class="col-12 p-0">
         
-        <div class="x-scrolling-wrapper pl-4">
+        <div class="x-scrolling-wrapper ml-1 pl-3">
 
         <a onclick="$('#myModal').modal(true)" href="#">
         <div class="card game-card answer-card  ">
@@ -88,16 +88,6 @@
             </div>
           </div>
 
-
-          <div class="card game-card answer-card  ">
-              <div class="card-body game-card-body p-2">
-                <div class="card-text-answer text-center" >
-                  <br>
-                <div style="font-size: 2.5rem; font-weight: 300;">💩</div>
-                All these cards are shit.
-                </div>
-              </div>
-            </div>
 
 
         </div>
