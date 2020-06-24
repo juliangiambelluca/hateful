@@ -21,8 +21,8 @@ class PlayerController extends Controller
     public function joinGame(Request $request){
          //Validate Inputs
          $attributeNames = array(
-            'input-name' => 'Name',
-            'input-password' => 'Password'
+            'input-name' => 'name',
+            'input-password' => 'password'
         );
         $customMessages = array();
         $rules = array(

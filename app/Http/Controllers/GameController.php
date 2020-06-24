@@ -79,7 +79,7 @@ class GameController extends Controller
     public function createGame(Request $request){
         //Validate Inputs
         $attributeNames = array(
-            'input-name' => 'Name',
+            'input-name' => 'name',
         );
         $customMessages = array();
         $rules = array(
