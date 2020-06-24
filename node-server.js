@@ -4,6 +4,8 @@ const path = require("path");
 // Setup MySQL
 const mysql = require('mysql');
 const { Console } = require('console');
+const { off } = require('process');
+const { setWith, shuffle } = require('lodash');
 const pool = mysql.createPool({
     connectionLimit : 100, //important
     host     : '127.0.0.1',
@@ -34,7 +36,7 @@ let notify = io.on('connection', (socket) => {
 	socket.on('join', function (dirtyUserID) {
 		//Never use the dirty user ID in SQL queries!
 		//Sanitise Input
-		userID = dirtyUserID.replace(/[^0-9]/g, '');
+		let userID = dirtyUserID.replace(/[^0-9]/g, '');
 		//if userID is more than 9.9... Billion, it's defintely invalid.
 		if(userID.length > 10){userID = null};
 
@@ -122,7 +124,7 @@ let notify = io.on('connection', (socket) => {
 
 			//Start round
 			const queryValues = ["rounds", "game_id", gameID];
-			await mysqlCustom("INSERT INTO ?? (??) VALUES (??)", queryValues);
+			await mysqlCustom("INSERT INTO ?? (??) VALUES (?);", queryValues);
 			
 			await mysqlUpdate("games", "started", 1, "id", gameID);
 			
@@ -181,23 +183,33 @@ let notify = io.on('connection', (socket) => {
 
 	});
 
-	socket.on('master-picked-question', (dirtyQuestionID) => {
-		
+	socket.on('master-picked-question', async (dirtyQuestionID) => {
+		console.log("Dirty question ID: '" + dirtyQuestionID + "'");
+		//Make sure user is indeed master!
+		console.log("In master-picked-question")
+		let questionID = 0;
+
 		//If question id has more than 10 digits it's definetely invalid!
-		if (dirtyQuestionID.length < 10){
-			try {
+		if (dirtyQuestionID.toString().length < 10){
+			// try {
 				//If it can't be parsed into an integer it's also definetely invalid!
-				const questionID = parseInt(dirtyQuestionID);
-			  }
-			  catch(err) {
-				console.log("Invalid picked question ID!")
-				return;
-			  }
+				 questionID = parseInt(dirtyQuestionID);
+				console.log("Set Clean Question ID")
+
+			//   }
+			//   catch(err) {
+			// 	console.log("Invalid picked question ID!")
+			// 	return;
+			//   }
 		} else {
+			console.log("Dirty Question ID too long!")
+
 			return;
 		}
 
 		if (socket.userID == null) {
+			console.log("Returned out of masterpickedquestion... no user session.")
+
 			return;
 		}
 
@@ -207,16 +219,16 @@ let notify = io.on('connection', (socket) => {
 				//Score question against offered questions
 
 		//Select latest round
-		const queryValues = ["id", "rounds", "game_id", socket.gameID, "created_at"];
-		const roundID = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? ORDER BY ?? DESC LIMIT 1", queryValues);
+		let queryValues = ["id", "rounds", "game_id", socket.gameID, "created_at"];
+		const roundID = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? ORDER BY ?? DESC LIMIT 1;", queryValues);
 
 		//Select all offered questions data
-		queryValues = ["id", "score", "round_question", "round_id", roundID[0].id];
-		const offeredQuestions = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? ORDER BY ?? DESC", queryValues);
+		queryValues = [roundID[0].id];
+		const offeredQuestions = await mysqlCustom("SELECT questions.id, questions.score FROM questions INNER JOIN round_question ON questions.id = round_question.question_id AND round_question.round_id = ?", queryValues);
 
 		//Select winning question data
 		queryValues = ["id", "score", "questions", "id", questionID];
-		const chosenQuestion = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ?", queryValues);
+		const chosenQuestion = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ?;", queryValues);
 
 		scoreCard(chosenQuestion, offeredQuestions, "questions");
 
@@ -390,20 +402,16 @@ function alertSocket(socket, message){
 
 async function updatePlayerStates(gameID, masterState = null, playerState = null){
 
-	const queryValues = ["id", "ismaster", "players", "game_id", gameID, "connected", 1, ];
-	const queryResult = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? ", queryValues);
+	const queryValues = ["id", "ismaster", "players", "game_id", gameID, "connected", 1 ];
+	const playersInGame = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? ", queryValues);
 	//Returns array of objects
 	
-	let currentPlayerID;
-	let currentPlayerMaster;
-	for(i=0;i<queryResult.length;i++){
-		currentPlayerID = queryResult[i].id;
-		currentPlayerMaster = queryResult[i].ismaster;
-		if (currentPlayerMaster == 1 && masterState !== null){
-			await mysqlUpdate("players", "state", masterState, "id", currentPlayerID);
+	for(i=0;i<playersInGame.length;i++){
+		if (playersInGame[i].ismaster == 1 && masterState !== null){
+			await mysqlUpdate("players", "state", masterState, "id", playersInGame[i].id);
 		} 
-		if (playerState !== null) {
-			await mysqlUpdate("players", "state", playerState, "id", currentPlayerID);
+		if (playersInGame[i].ismaster == 0 && playerState !== null) {
+			await mysqlUpdate("players", "state", playerState, "id", playersInGame[i].id);
 		}
 	}
 }
@@ -420,26 +428,43 @@ async function getMasterQuestions(socket) {
 	averageScore = parseInt(averageScore);
 
 	//Select latest round
-	const queryValues = ["id", "rounds", "game_id", socket.gameID, "created_at"];
+	queryValues = ["id", "rounds", "game_id", socket.gameID, "created_at"];
 	const roundID = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? ORDER BY ?? DESC LIMIT 1", queryValues);
 	
 
 	queryValues = ["id", "question", "questions", "score", averageScore];
-	let topRandonQuestions = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? >= ? ORDER BY RAND() LIMIT 5", queryValues);
+	let topRandonQuestions = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? >= ? ORDER BY RAND() LIMIT 7", queryValues);
 	let lowRandomQuestions = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? <= ? ORDER BY RAND() LIMIT 3", queryValues);
 	let questions = topRandonQuestions;
 	questions = questions.concat(lowRandomQuestions);
+	shuffle(questions);
 
 	//Make data for new game state
 	let questionsInsert = "";
 	for(i=0;i<questions.length;i++){
+		// switch (i) {
+		// 	case 0:
+		// 		questionsInsert += '<div class="row" style="width: 100vw; margin: auto;">';
+		// 		break;
+		// 	case (questions.length / 2):
+		// 		questionsInsert += '</div><div class="row" style="width: 100vw; margin: auto;">';
+		// 		break;
+		// 	case questions.length:
+		// 		questionsInsert += '</div>';
+		// 		break;
+		
+		// 	default:
+		// 		break;
+		// }
 		//Log offered questions for question card scoring later.
 		const queryValues = ["round_question", "round_id", "question_id", roundID[0].id, questions[i].id];
-		mysqlCustom("INSERT INTO ?? (??, ??) VALUES (??, ??)", queryValues);
-
+		mysqlCustom("INSERT INTO ?? (??, ??) VALUES (?, ?);", queryValues);
+		
+		
+		// <div class="col-6 col-sm-4 col-lg-3">
 		questionsInsert += `
-		<a onclick="pickQuestion(${questions[i].id})" href="#">
-		<div class="card game-card answer-card  ">
+		<a class="click-card" onclick="pickQuestion(${questions[i].id})" href="#">
+		<div class="card game-card question-card  ">
 		   <div class="card-body game-card-body p-2">
 			  <div class="card-text-answer">
 				  ${questions[i].question}
@@ -448,14 +473,17 @@ async function getMasterQuestions(socket) {
 		 </div>
 		</a>
 		`
+		
+		// </div>
+
+
 	}
 
 	let data = `
-	<div class="row mt-2">
-    <div class="col-12 p-0">
-        <div class="x-scrolling-wrapper pl-4">
-            ${questionsInsert}
-        </div>
+	<h1 class="mb-3">Pick a question</h1>
+	<div id="answer-table" class="row mt-2 text-center">
+    <div class="col-12">
+			${questionsInsert}
     </div>
 	</div>
 	`
@@ -480,20 +508,25 @@ async function scoreCard(winnerCard, offeredCards, table) {
 		let winProbability = 0;
 		let newRating = 0;
 		for(i=0;i<offeredCards.length;i++){
-			offeredQuestionsTotalScore += offeredCards[i].score;
-			//calculate score for each losing card against chose card
-			//Calculate Probability of current card winning against winner:
-			winProbability = 1 / ( 1 + 10^((winnerCard[0].score - offeredCards[i].score)/400));
-			newRating = offeredCards[i].score + (32*(0 - winProbability));
-			mysqlUpdate(table, "score", newRating, "id", offeredCards[i].id);
+			//Skip the winning card from looser calculations.
+			if(offeredCards[i].id !== winnerCard[0].id){
+				offeredQuestionsTotalScore += offeredCards[i].score;
+				//calculate score for each losing card against chose card
+				//Calculate Probability of current card winning against winner:
+				winProbability = 1 / ( 1 + (10**((winnerCard[0].score - offeredCards[i].score)/400)));
+				newRating = offeredCards[i].score + (32*(0 - winProbability));
+				console.log(offeredCards[i].score + " =lose=> " + newRating + " P=" + winProbability)
+				mysqlUpdate(table, "score", newRating, "id", offeredCards[i].id);
+			}
 		}
 
-		//Calculate average score, excluding the chosen card.
-		offeredCardsScoreAVG = (offeredQuestionsTotalScore - winnerCard[0].score) / (offeredCards.length - 1);
+		//Calculate average score of loosers
+		offeredCardsScoreAVG = offeredQuestionsTotalScore / (offeredCards.length - 1);
 		//calculate chosen card score against average of cards offered.
 
-		winProbability = 1 / ( 1 + 10^((offeredCardsScoreAVG - winnerCard[0].score)/400));
-		newRating = offeredCards[i].score + (32*(1 - winProbability));
+		winProbability = 1 / ( 1 + (10**((offeredCardsScoreAVG - winnerCard[0].score)/400)));
+		newRating = winnerCard[0].score + (32*(1 - winProbability));
+		console.log(winnerCard[0].score + " =win=> " + newRating  + " P=" + winProbability)
 		mysqlUpdate(table, "score", newRating, "id", winnerCard[0].id);
 
 
