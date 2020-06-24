@@ -8,130 +8,22 @@ body {
     vertical-align: text-bottom;
   }
   
-  /*
-   * Sidebar
-   */
-  
-  .sidebar {
-    position: fixed;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    z-index: 100; /* Behind the navbar */
-    padding: 48px 0 0; /* Height of navbar */
-    box-shadow: inset -1px 0 0 rgba(0, 0, 0, .1);
-  }
-  
-  .sidebar-sticky {
-    position: relative;
-    top: 0;
-    height: calc(100vh - 48px);
-    padding-top: .5rem;
-    overflow-x: hidden;
-    overflow-y: auto; /* Scrollable contents if viewport is shorter than content. */
-  }
-  
-  @supports ((position: -webkit-sticky) or (position: sticky)) {
-    .sidebar-sticky {
-      position: -webkit-sticky;
-      position: sticky;
-    }
-  }
-  
-  .sidebar .nav-link {
-    font-weight: 500;
-    color: #333;
-  }
-  
-  .sidebar .nav-link .feather {
-    margin-right: 4px;
-    color: #999;
-  }
-  
-  .sidebar .nav-link.active {
-    color: #007bff;
-  }
-  
-  .sidebar .nav-link:hover .feather,
-  .sidebar .nav-link.active .feather {
-    color: inherit;
-  }
-  
-  .sidebar-heading {
-    font-size: .75rem;
-    text-transform: uppercase;
-  }
-  
-
-
-
-  /*
-   * Content
-   */
-
-.sidebar-profile {
-  width: 50px;
-  height: 50px;
-  object-fit: cover;
-  margin: 10px;
-}
-
-  
-  [role="main"] {
-    padding-top: 10px; 
-  }
-  
-  
-  /*
-   * Navbar
-   */
-  
-  .navbar-brand {
-    padding-top: .75rem;
-    padding-bottom: .75rem;
-    font-size: 1rem;
-    background-color: rgba(0, 0, 0, .25);
-    box-shadow: inset -1px 0 0 rgba(0, 0, 0, .25);
-  }
-  
-  .navbar .form-control {
-    padding: .75rem 1rem;
-    border-width: 0;
-    border-radius: 0;
-  }
-  
-  .form-control-dark {
-    color: #fff;
-    background-color: rgba(255, 255, 255, .1);
-    border-color: rgba(255, 255, 255, .1);
-  }
-  
-  .form-control-dark:focus {
-    border-color: transparent;
-    box-shadow: 0 0 0 3px rgba(255, 255, 255, .25);
-  }
-
-  .topbar-announcements {
-    padding: 10px;
-  }
-
-
   /* Game Styles */
 
 
 /* card styles */
 .question-card {
 
-  background-color: black;
+  background-color: #2f3c54;
   color: white;
   width: 130px;
   height: 200px;
 }
 .answer-card {
   background-color: white;
-  color: black;
-  height: 175px;
-  width: 115px;
+  color: #2f3c54;
+  width: 130px;
+  height: 200px;
 }
 
 
@@ -140,7 +32,7 @@ body {
 .x-scrolling-wrapper {
   display: flex;
   flex-wrap: nowrap;
-  padding: 10px 5px 10px 5px;
+  /* padding: 10px 5px 10px 5px; */
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -155,7 +47,10 @@ body {
 
 
 .game-card {
-
+  display: inline-block;
+  vertical-align: middle;
+  text-align: left;
+  border-radius: 0.7rem;
   margin: 3px;
   -webkit-box-shadow: 0px 4px 11px -9px rgba(84,84,84,0.73);
   -moz-box-shadow: 0px 4px 11px -9px rgba(84,84,84,0.73);
@@ -173,15 +68,15 @@ body {
   font-weight: 400;
 }
 .card-chosen-answer{
-  height: 175px;
-  width: 115px;
+  width: 130px;
+  height: 200px;
 }
 
 .card-backs.x-scrolling-wrapper {
   display: block;
   width: 100%;
   transform: translateY(-11px);
-  padding: 10px 5px 15px 5px;
+  /* padding: 10px 5px 15px 5px; */
   margin: auto!important;
 }
 .card-backs.x-scrolling-wrapper::-webkit-scrollbar {
@@ -190,7 +85,7 @@ body {
 
 .card-back {
   width: 50px;
-  height: 75px;
+  height: 70px;
   border-radius: 6px;
 }
 .back-answer-pair {
@@ -220,7 +115,7 @@ float: left;
 #my-cards .x-scrolling-wrapper {
   display: block;
   width: 100%;
-  padding: 10px 5px 10px 5px;
+  /* padding: 10px 5px 10px 5px; */
   margin: auto!important;
 }
 #my-cards .x-scrolling-wrapper::-webkit-scrollbar {
@@ -231,42 +126,72 @@ float: left;
 }
 
 }
-@media screen and (min-width: 350px) and (max-width: 405px) {
+/* @media screen and (min-width: 350px) and (max-width: 405px) {
   .answer-card { 
-    width: 100px;    
-    height: 160px;
+    width: 130px;
+    height: 200px;
+  }
+} */
+
+
+
+@media screen and (min-width: 370px) {
+  .question-card {
+    width: 160px;
+    height: 224px;
+  }
+  .game-card-body {
+    padding: 12px !important;
+
+    font-size: 0.75rem;
+  }
+  .card-text-question, .card-text-answer {
+    font-weight: 500;
   }
 }
-@media screen and (min-width: 770px) {
+
+@media screen and (min-width: 390px) {
+  .question-card {
+    width: 180px;
+    height: 252px;
+  }
+  .game-card-body {
+    padding: 14px !important;
+
+    font-size: 0.85rem;
+  }
+  .card-text-question, .card-text-answer {
+    font-weight: 500;
+  }
+}
+
+@media screen and (min-width: 750px) {
   /* SM */
   #answer-table {
     padding-left: 30px;
   }
   .answer-card {
-    width: 190px;
+    width: 200px;
     height: 280px;
   }
   .question-card {
     width: 200px;
-    height: 290px;
+    height: 280px;
   }
   .game-card-body {
     padding: 17px !important;
     font-size: 1rem;
   }
-  .card-text-question {
-    font-weight: 600;
-  }
-  .card-text-answer {
+  .card-text-question, .card-text-answer {
     font-weight: 600;
   }
   .card-chosen-answer{
-    height: 235px;
-    width: 160px;
+    width: 200px;
+    height: 280px;
   }
   .card-back {
     width: 75px;
-    height: 113px;
+    height: 105px;
     border-radius: 8px;
   }
   .card-back .game-card-body{
@@ -295,11 +220,12 @@ float: left;
   float: left;
 }
 
+
 }
 
 @media screen and (min-width: 1350px) {
 /* LG */
-#my-cards .x-scrolling-wrapper .card {
+/* #my-cards .x-scrolling-wrapper .card {
     margin: 25px;
     transform: scale(1.15);
 }
@@ -310,11 +236,11 @@ float: left;
 .x-scrolling-wrapper .card.card-back {
   margin: 15px 10px;
   transform: scale(1.10);
-}
-.question-card {
+} */
+/* .question-card {
   width: 230px;
   height: 320px;
-}
+} */
 .pick-2-back{
   margin-top: -70px !important;
  }
@@ -323,38 +249,13 @@ float: left;
 
 .current-question {
   margin: auto !important;
-
+ 
 }
 
 
 /* Card wrappers */
 /* */
 
-.contacts_body{
-  padding:  0rem 0rem ;
-}
-
-.contacts{
-  list-style: none;
-  padding: 0;
-}
-.contacts li{
-  width: 100% !important;
-  padding: 5px 5px;
-  margin-bottom: 5px;
-}
-.x-scrolling-wrapper .contacts{
-  
-  display: flex;
-  flex-wrap: nowrap;
-  padding: 0px 0px 0px 0px;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
-.x-scrolling-wrapper .contacts li{
-width: max-content!important;
-margin: 0 5px;
-}
 .x-scrolling-wrapper span, .x-scrolling-wrapper p {
   color:white!important;
 }
@@ -362,55 +263,6 @@ margin: 0 5px;
   padding-top: 0px;
   padding-left: 0px;
 }
-
-.user-image{
-  height: 50px;
-  width: 50px;
-  -webkit-box-shadow: 0px 4px 11px -9px rgba(84,84,84,0.73);
-  -moz-box-shadow: 0px 4px 11px -9px rgba(84,84,84,0.73);
-  box-shadow: 0px 4px 11px -9px rgba(84,84,84,0.73);
-}
-.user_info{
-  margin-left: 10px;
-}
-.user_info span{
-  font-size: 0.85rem;
-  color: black;
-}
-.user_info p{
-font-size: 0.65rem;
-margin-bottom: 0px !important;
-color: rgba(0, 0, 0, 0.6);
-}
-
-.active {
-  background-color: black;
-  border-radius: 150px;
-}
-.active i {
-  color: gold;
-}
-.active span, .active p  {
-  color:white!important;
-}
-.active span {
-  font-weight: 900;
-}
-.active .user-image{
-  border: 5px solid white;
-}
-
-
-.game-password span{
-  font-weight: 900;
-  font-size: 1rem;
-  color: black;
-}
-.game-password p{
-font-size: 1rem;
-color: rgb(73, 73, 73);
-}
-
 
 
 
@@ -484,4 +336,22 @@ textarea, textarea:focus {
 #game-state-display {
   opacity: 0;
   transition: 0.2s
+}
+
+
+.name-cards-container {
+  width: 100vw;
+}
+
+@media screen and (min-width: 760px) {
+
+  .name-cards-container {
+    width: 100%;
+  }
+  
+  .name-cards-container .x-scrolling-wrapper {
+    display: block;
+    float: left;
+  }
+
 }
