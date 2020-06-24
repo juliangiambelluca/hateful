@@ -27,17 +27,17 @@
   <nav class="navbar navbar-dark bg-dark d-block p-0 ">
 
     <div class="row d-sm-flex pt-1 pl-2" style="width: 100%; ">
-
-      <div class="col-12  col-md-4  col-lg-3  text-white " ><h4 class="m-2" style="font-weight: 800"> hateful. [beta]</h4></div>  
-
+	<div class="col-0 col-md-1 cold-lg-2"></div>
+      <div class="col-12 col-md-10 col-lg-8 text-white " ><h4 class="m-2 ml-3" style="font-weight: 800"> hateful. [beta]</h4></div>  
+	  <div class="col-0 col-md-1 cold-lg-2"></div>
     </nav>
 
 
 
     <div class="content-fluid">
-      <div class="row" style="width: 100%">
-        <main role="main" class="col-md-9 col-lg-10 ml-5">
-
+	  <div class="row" style="width: 100%">
+	  <div class="col-0 col-md-1 cold-lg-2"></div>
+        <main role="main" class="col-12 col-md-10 col-lg-8">
           <div id="game-table">
             <div class="row">
               <div class="col-md-6">
@@ -67,17 +67,14 @@
 			  
 			  </div>
               <div class="col-md-6">
-			  <div class="row">
-	<!-- DEBUGGING RESPONSE -->
-	<div id="debug" style="overflow-wrap: anywhere; "></div>
-</div>
               </div>
 
             </div>
           </div>      
           <!-- End Game table -->
 
-          <div id="name-cards-container">
+
+		<div id="name-cards-container" class="name-cards-container">
             <div class="row m-3">
               <div class="col-12 p-0">
                 <div id="name-cards" class="x-scrolling-wrapper">
@@ -86,7 +83,16 @@
             </div>  
           </div>
 
-        </main>
+
+
+		</main>
+		
+
+
+
+
+		<div class="col-0 col-md-1 cold-lg-2"></div>
+
       </div>
     </div>
 
@@ -102,7 +108,6 @@
 
     <script>
         //on page load
-        $(function () {
 		const socket = io('http://127.0.0.1:3000');
 
           //User inputs in session have already been sanitised. json laravel blade directive not working for me.
@@ -140,7 +145,7 @@
 		  socket.on('enableGameStart', function () {
 			@if(session('isMaster') === true)
 				$("#start-game").html(`
-				<button id="start-game" class="btn btn-lg mt-4 py-3 btn-success" 
+				<button id="start-game" class="btn btn-lg mt-2 py-3 btn-success" 
 				style="min-width: 50%; max-width: 83%;">
 				Start Game.</button>   
 				`);
@@ -182,8 +187,6 @@
 			@endif
 		  });
 
-		});
-
 		  
         function displayNameCards(players){
 			let render = "";
@@ -194,7 +197,7 @@
 
 				// if(!(document.getElementById("player-" + id))){
 				nameCardsTemplate = `
-				<div id="player-${id}" class="card game-card answer-card  ">
+				<div id="player-${id}" style="float: left" class="card game-card answer-card  ">
 				<div class="card-body game-card-body">
 				<div class="card-text-answer">
 				${fullname}

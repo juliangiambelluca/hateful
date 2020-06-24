@@ -1,5 +1,12 @@
 
-<!doctype html>
+<!DOCTYPE html>
+<!--
+* CoreUI - Free Bootstrap Admin Template
+* @version v3.2.0
+* @link https://coreui.io
+* Copyright (c) 2020 creativeLabs Łukasz Holeczek
+* Licensed under MIT (https://coreui.io/license)
+-->
 <html lang="en">
   <head>
     <meta charset="utf-8">
@@ -13,32 +20,85 @@
     <link href="{{ URL::to('css/app.css') }}" rel="stylesheet">
     
     <link href="{{ URL::to('css/game.css') }}" rel="stylesheet">
+    <style>
+      
+@media (min-width: 768px) {
+  html:not([dir="rtl"]) .c-sidebar.c-sidebar-md-show:not(.c-sidebar-right).c-sidebar-fixed ~ .c-wrapper, html:not([dir="rtl"])
+  .c-sidebar.c-sidebar-show:not(.c-sidebar-right).c-sidebar-fixed ~ .c-wrapper {
+    margin-left: 256px;
+  }
+  *[dir="rtl"] .c-sidebar.c-sidebar-md-show:not(.c-sidebar-right).c-sidebar-fixed ~ .c-wrapper, *[dir="rtl"]
+  .c-sidebar.c-sidebar-show:not(.c-sidebar-right).c-sidebar-fixed ~ .c-wrapper {
+    margin-right: 256px;
+  }
+  html:not([dir="rtl"]) .c-sidebar.c-sidebar-md-show:not(.c-sidebar-right).c-sidebar-fixed.c-sidebar-sm ~ .c-wrapper, html:not([dir="rtl"])
+  .c-sidebar.c-sidebar-show:not(.c-sidebar-right).c-sidebar-fixed.c-sidebar-sm ~ .c-wrapper {
+    margin-left: 192px;
+  }
+  *[dir="rtl"] .c-sidebar.c-sidebar-md-show:not(.c-sidebar-right).c-sidebar-fixed.c-sidebar-sm ~ .c-wrapper, *[dir="rtl"]
+  .c-sidebar.c-sidebar-show:not(.c-sidebar-right).c-sidebar-fixed.c-sidebar-sm ~ .c-wrapper {
+    margin-right: 192px;
+  }
+  html:not([dir="rtl"]) .c-sidebar.c-sidebar-md-show:not(.c-sidebar-right).c-sidebar-fixed.c-sidebar-lg ~ .c-wrapper, html:not([dir="rtl"])
+  .c-sidebar.c-sidebar-show:not(.c-sidebar-right).c-sidebar-fixed.c-sidebar-lg ~ .c-wrapper {
+    margin-left: 320px;
+  }
+  *[dir="rtl"] .c-sidebar.c-sidebar-md-show:not(.c-sidebar-right).c-sidebar-fixed.c-sidebar-lg ~ .c-wrapper, *[dir="rtl"]
+  .c-sidebar.c-sidebar-show:not(.c-sidebar-right).c-sidebar-fixed.c-sidebar-lg ~ .c-wrapper {
+    margin-right: 320px;
+  }
+  html:not([dir="rtl"]) .c-sidebar.c-sidebar-md-show:not(.c-sidebar-right).c-sidebar-fixed.c-sidebar-xl ~ .c-wrapper, html:not([dir="rtl"])
+  .c-sidebar.c-sidebar-show:not(.c-sidebar-right).c-sidebar-fixed.c-sidebar-xl ~ .c-wrapper {
+    margin-left: 384px;
+  }
+  *[dir="rtl"] .c-sidebar.c-sidebar-md-show:not(.c-sidebar-right).c-sidebar-fixed.c-sidebar-xl ~ .c-wrapper, *[dir="rtl"]
+  .c-sidebar.c-sidebar-show:not(.c-sidebar-right).c-sidebar-fixed.c-sidebar-xl ~ .c-wrapper {
+    margin-right: 384px;
+  }
+  html:not([dir="rtl"]) .c-sidebar.c-sidebar-md-show:not(.c-sidebar-right).c-sidebar-fixed.c-sidebar-minimized ~ .c-wrapper, html:not([dir="rtl"])
+  .c-sidebar.c-sidebar-show:not(.c-sidebar-right).c-sidebar-fixed.c-sidebar-minimized ~ .c-wrapper {
+    margin-left: 56px;
+  }
+  *[dir="rtl"] .c-sidebar.c-sidebar-md-show:not(.c-sidebar-right).c-sidebar-fixed.c-sidebar-minimized ~ .c-wrapper, *[dir="rtl"]
+  .c-sidebar.c-sidebar-show:not(.c-sidebar-right).c-sidebar-fixed.c-sidebar-minimized ~ .c-wrapper {
+    margin-right: 56px;
+  }
+}
 
+      </style>
   </head>
+  </head>
+  <body class="c-app">
+  @include('partials.topbar')
+
+   @include('partials.sidebar')
+    <div class="c-wrapper c-fixed-components">
+      <div class="d-lg-none"><div class="m-4 pt-3"></div></div>
+      <div class="c-body">
+        <main class="c-main" >
+          <div class="container-fluid">
+            <div class="fade-in">
+
+            
+            <script src="{{ URL::to('js/app.js') }}"></script>
+            <script src="{{ URL::to('js/coreui.bundle.min.js') }}"></script>
+            <script src="{{ URL::to('js/main.js') }}"></script>
+
+@yield('content')
 
 
-  <body>
-  <!-- include('partials.topbar') -->
-  <nav class="navbar navbar-dark bg-dark d-block p-0 " style="z-index: 999">
+            </div>
+          </div>
+        </main>
+        <!-- <footer class="c-footer">
+          <div><a href="https://coreui.io">CoreUI</a> © 2020 creativeLabs.</div>
+          <div class="ml-auto">Powered by&nbsp;<a href="https://coreui.io/">CoreUI</a></div>
+        </footer> -->
+      </div>
+    </div>
+    <script src="https://kit.fontawesome.com/d5ff43701b.js" crossorigin="anonymous"></script>
 
-<div class="row d-sm-flex pt-1 pl-2" style="width: 100%; height:50px; ">
-
-  <div class="col-12  col-md-4  col-lg-3  text-white " ><h4 class="m-2" style="font-weight: 800"> hateful. [beta]</h4></div>  
-
-</nav>
-
-<div class="content-fluid">
-  <div class="row" style="width: 100%; height: 90vh;">
-    @include('partials.sidebar')
-<script src="{{ URL::to('js/app.js') }}"></script>
-
-    @yield('content')
-  </div>
-</div>
-
-
-
-<script src="https://kit.fontawesome.com/d5ff43701b.js" crossorigin="anonymous"></script>
+    <!--<![endif]-->
 
   </body>
 </html>
