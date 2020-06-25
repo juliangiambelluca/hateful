@@ -58,7 +58,9 @@ class PlayerController extends Controller
                     'fullname' => $inputFullname,
                     'session' => $newSessionToken,
                     'connected' => false,
-                    'ismaster' => 0
+                    'state' => 'no-state',
+                    'ismaster' => 0,
+                    'ishost' => 0
                 ]);
                 //Save new player in relation to this game.
                 $oldGame->players()->save($player);
@@ -71,6 +73,7 @@ class PlayerController extends Controller
                 session(['fullname' => $player->fullname]);
                 session(['userID' => $player->id]);
                 session(['isMaster' => false]);
+                session(['isHost' => false]);
                 session(['sessionToken' => $player->session]);
                 session(['failedLoginAttempts' => 0]);
                 session(['bannedUntil' => 0]);
