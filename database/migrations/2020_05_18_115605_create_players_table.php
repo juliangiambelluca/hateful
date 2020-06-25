@@ -21,6 +21,7 @@ class CreatePlayersTable extends Migration
             $table->string('session', 64);	
             $table->boolean('connected');
             $table->boolean('ismaster');
+            $table->boolean('ishost');
             $table->string('state')->nullable();;
             $table->integer('game_id');	
 
