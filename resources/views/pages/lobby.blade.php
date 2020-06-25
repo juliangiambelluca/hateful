@@ -143,9 +143,9 @@
           });
 
 		  socket.on('enableGameStart', function () {
-			@if(session('isMaster') === true)
+			@if(session('isHost') === true)
 				$("#start-game").html(`
-				<button id="start-game" class="btn btn-lg mt-2 py-3 btn-success" 
+				<button onclick="startGame()" id="start-game" class="btn btn-lg mt-2 py-3 btn-success" 
 				style="min-width: 50%; max-width: 83%;">
 				Start Game.</button>   
 				`);
@@ -160,13 +160,10 @@
 				`);
 			@endif
 
-			document.getElementById("start-game").addEventListener("click", function () {
-              socket.emit("start-game");
-		 	 });
 		  });
 
 		  socket.on('disableGameStart', function () {
-			@if(session('isMaster') === true)
+			@if(session('isHost') === true)
 				$("#start-game").html(`
 				<div class="alert alert-dark alert-dismissible fade show" role="alert">
 					<strong>Waiting for at least 3 players</strong>. You won't be able to start the game until then.
@@ -214,7 +211,10 @@
 		}
 		
 
-	
+		function startGame(){
+			socket.emit("start-game");
+			$("#start-game").attr("onclick","console.log('Second Click detected.')");
+		}
 
       </script>
 
