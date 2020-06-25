@@ -87,9 +87,18 @@ let notify = io.on('connection', (socket) => {
 
 	});
 
-	socket.on('player-picked-answer', async (dirtyQuestionID) => {
+	socket.on('player-picked-answer', async (dirtyAnswerID) => {
+		//Score answer against the other answers offered to the user
 
+		//Short-list answer
+
+		//emit card backs to everyone
 		
+	});
+	socket.on('player-picked-roaster-answer', async (dirtyRoasterAnswerID) => {
+		//Short-list answer
+
+		//emit card backs to everyone		
 	});
 
 
@@ -458,9 +467,9 @@ async function getMasterQuestions(socket) {
 	const roundID = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? ORDER BY ?? DESC LIMIT 1", queryValues);
 	
 
-	queryValues = ["id", "question", "questions", "score", averageScore];
-	let topRandonQuestions = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? >= ? ORDER BY RAND() LIMIT 7", queryValues);
-	let lowRandomQuestions = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? <= ? ORDER BY RAND() LIMIT 3", queryValues);
+	queryValues = ["id", "question", "blanks", "questions", "score", averageScore];
+	let topRandonQuestions = await mysqlCustom("SELECT ??, ??, ?? FROM ?? WHERE ?? >= ? ORDER BY RAND() LIMIT 7", queryValues);
+	let lowRandomQuestions = await mysqlCustom("SELECT ??, ??, ?? FROM ?? WHERE ?? <= ? ORDER BY RAND() LIMIT 3", queryValues);
 	let questions = topRandonQuestions;
 	questions = questions.concat(lowRandomQuestions);
 	shuffle(questions);
@@ -480,6 +489,12 @@ async function getMasterQuestions(socket) {
 		   <div class="card-body game-card-body p-2">
 			  <div class="card-text-answer">
 				  ${questions[i].question}
+			  </div>
+			  <div class="hateful-watermark">
+			 	 hateful.io
+		 	  </div>
+			  <div class="pick-indicator">
+				  (Pick ${questions[i].blanks})
 			  </div>
 		   </div>
 		 </div>
@@ -685,7 +700,7 @@ async function showPlayerAnswers(socket){
 	//Get current question
 	//Select latest round & question
 	queryValues = ["id", "question_id", "rounds", "game_id", socket.gameID, "id"];
-	const latestRound = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? ORDER BY ??", queryValues);
+	const latestRound = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? ORDER BY ?? DESC", queryValues);
 
 	//get round_answer rows for this round and user.
 	queryValues = ["answer_id", "player_roaster_id", "round_answer", "round_id", latestRound[0].id, "player_id", socket.userID];
@@ -715,6 +730,9 @@ async function showPlayerAnswers(socket){
 			  <div class="card-text-answer">
 				  ${currentAnswerText}
 			  </div>
+			  <div class="hateful-watermark">
+			  hateful.io
+		 	  </div>
 		   </div>
 		 </div>
 		</a>
@@ -722,8 +740,7 @@ async function showPlayerAnswers(socket){
 	}
 
 	const answerCards = `
-	<div class="row mt-4 mb-5">
-		<div class="col-12">
+
 			<!--<div class="x-scrolling-wrapper ml-1 pl-3">-->
 				<a onclick="$('#myModal').modal(true)" href="#">
 					<div class="card game-card answer-card  ">
@@ -733,13 +750,14 @@ async function showPlayerAnswers(socket){
 								<div style="font-size: 2.5rem; font-weight: 300;"><i class="fas fa-plus"></i></div>
 								Write your own.
 							</div>
+							<div class="hateful-watermark">
+							hateful.io
+							 </div>
 						</div>
 					</div>
 				</a>
 				${answersInsert}
    			<!-- </div> -->
-   		</div>
-    </div>
 	`;
 
 	socket.emit('show-player-answers', answerCards);
@@ -766,23 +784,30 @@ async function getRoundQuestion(socket){
 	const latestRound = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? ORDER BY ?? DESC LIMIT 1", queryValues);
 
 	//Get round question text
-	queryValues = ["id", "question", "questions", "id", latestRound[0].question_id];
-	const roundQuestion = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? LIMIT 1", queryValues);
+	queryValues = ["id", "question", "blanks", "questions", "id", latestRound[0].question_id];
+	const roundQuestion = await mysqlCustom("SELECT ??, ??, ?? FROM ?? WHERE ?? = ? LIMIT 1", queryValues);
 
 	console.log(JSON.stringify(roundQuestion));
 
 	const questionCard = `
-	
-	<div class="card game-card question-card  ">
+	<div id="question-blanks" class="d-none">${roundQuestion[0].blanks}</div>
+	<div class="card game-card question-card">
 	   <div class="card-body game-card-body p-2">
 		  <div class="card-text-answer">
 			  ${roundQuestion[0].question}
 		  </div>
+		  <div class="hateful-watermark">
+		  hateful.io
+		   </div>
+		   <div class="pick-indicator">
+		   (Pick ${roundQuestion[0].blanks})
+	   </div>
 	   </div>
 	 </div>
 	`
 
 	emitToPlayers(socket, "show-player-question", questionCard);
+
 }
 
 function showMainGameTemplate(socket){
@@ -823,3 +848,4 @@ function newPlayerWaitForNextRound(socket){
 		console.log('Error:', e.stack);
 	}
 }
+
