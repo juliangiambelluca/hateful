@@ -7,8 +7,7 @@ play hateful
 @section('content')
 <div class="row">
 <div class="col-md-12 col-lg-12">
-	<!-- <div id="game-state-display"></div> -->
-	@include("pages.maingm")
+	<div id="game-state-display"></div>
 </div>
 </div>
 
@@ -38,6 +37,16 @@ play hateful
 				}, 1000);
 			} else {
 				alert("The host disconnected. " + newHost[1] + " is the new host.");
+			}
+		});
+		socket.on('newMaster', function (newMaster) {
+			if(newMaster[0] == userID){
+				setTimeout(() => {
+				alert("The Round Master disconnected. You are the new Round Master.");
+				location.reload();
+				}, 1000);
+			} else {
+				alert("The Round Master disconnected. " + newMaster[1] + " is the Round Master host.");
 			}
 		});
 		
@@ -75,6 +84,19 @@ play hateful
 			}, 50);
 		});
 
+		socket.on('show-player-question', function(questionCard){
+			$("#round-question-card").html(questionCard)
+		});
+
+		socket.on('show-player-answers', function(answerCards){
+			$("#my-answer-cards").html(answerCards);
+		});
+
+		socket.on('get-your-answers', () => {
+			console.log("Get Your Answers!")
+			socket.emit('what-is-my-state');
+		});
+
 
 		//Game Functions
 		
@@ -105,7 +127,19 @@ play hateful
 		}
 
 		function pickQuestion(questionID){
+			console.log("pick question executed");
 			socket.emit("master-picked-question", questionID);
+			$("#question-" + questionID).attr("onclick","console.log('Second Click detected.')");
+		}
+
+		function pickAnswer(answerID, isRoaster = null){
+			if (isRoaster === "player-name-roaster"){
+				$("#roaster-answer-" + answerID).attr("onclick","console.log('Second Click detected.')");
+				socket.emit("player-picked-roaster-answer", answerID);
+			} else {
+				$("#answer-" + answerID).attr("onclick","console.log('Second Click detected.')");
+				socket.emit("player-picked-answer", answerID);
+			}
 		}
 </script>
 
