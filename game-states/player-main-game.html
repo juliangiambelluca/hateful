@@ -1,27 +1,52 @@
 
-  <div id="game-table">
+<div id="game-table">
     <div class="row">
-    
-      <div class="col-6 col-md-5 col-lg-4 col-xl-3" id="round-question-card">
-        
-      </div>  
-      
-      <div id="confirm-answer" style="display:none" class="col-6 col-md-7 col-lg-6 col-xl-9">
-  
+	    <div class="col-12 pr-0">
+      <div style="float:left" class="pl-1 pt-1" id="round-question-card">
+        <div class="spinner-border m-3" role="status">
+         <span class="sr-only">Loading...</span>
+        </div>
       </div>
-      <div id="card-backs" class="col-6 col-sm-8 col-lg-9">
-  
-      </div>
-    </div> 
-    <!-- End row  -->
-  </div>      
+	        <div id="confirm-answer" style="display:none" >
+    			<div class="x-scrolling-wrapper ml-1 p-1 ">
+
+					<!-- Some padding to encourage side scrolling on mobile -->
+					<!-- <div class="m-3 d-md-none"></div> -->
+
+          <span id="confirm-answer-cards" style="display:contents">
+          
+          </span>
+
+					<div class="confirm-button-holder"  style="display: contents; height: 100px; width: 100px; overflow: hidden;">
+         			    <button type="button" id="confirm-button" style="position: sticky; display: none; opacity: 0%;" height="70px" width="70px" class="btn vertical-center  ml-2 btn-lg btn-circle btn-disabled "><i class="fas fa-check"></i></button>
+       			    </div>
+
+         		</div>
+			</div>
+			
+			<div class="x-scrolling-wrapper ml-1 p-1" id="card-backs">
+			</div>
+        	
+      	</div>
+	</div> 
+</div> 
+<!-- End  TOP row  -->
+
+
   <!-- End Game table -->
-  
-  <div id="my-answer-cards">
-    
-  </div>
-  
-  </main>
+<div class="row mt-4 mb-5">
+	<div class="col-12">
+		<div class="p-1" id="my-answer-cards">
+      <div class="spinner-border m-4" style="float: left;" role="status">
+        <span class="sr-only">Loading...</span>
+    </div>
+    <h1 class="mt-3" style="display:inline-block">Ripping off Cards Against Humanity...</h1>
+		</div>
+	</div>
+</div>
+<div class="answers-cover"></div>
+
+</main>
   
   
   
