@@ -199,6 +199,9 @@
 				<div class="card-text-answer">
 				${fullname}
 				</div>
+				<div class="hateful-watermark">
+		  hateful.io
+		   </div>
 				</div>
 				</div> 
 				`;
