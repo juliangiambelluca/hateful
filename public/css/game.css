@@ -84,8 +84,8 @@ body {
 }
 
 .card-back {
-  width: 50px;
-  height: 70px;
+  width: 75px;
+  height: 105px;
   border-radius: 6px;
 }
 .back-answer-pair {
@@ -190,8 +190,8 @@ float: left;
     height: 280px;
   }
   .card-back {
-    width: 75px;
-    height: 105px;
+    width: 100px;
+    height: 140px;
     border-radius: 8px;
   }
   .card-back .game-card-body{
@@ -256,9 +256,6 @@ float: left;
 /* Card wrappers */
 /* */
 
-.x-scrolling-wrapper span, .x-scrolling-wrapper p {
-  color:white!important;
-}
 .navbar .x-scrolling-wrapper {
   padding-top: 0px;
   padding-left: 0px;
@@ -354,4 +351,130 @@ textarea, textarea:focus {
     float: left;
   }
 
+}
+
+
+.hateful-watermark {
+  position: absolute;
+  bottom: 10px;
+  font-weight: 700;
+}
+
+.pick-indicator {
+  position: absolute;
+  bottom: 10px;
+  right: 15px;
+}
+
+.btn-circle {
+  width: 30px;
+  height: 30px;
+  text-align: center;
+  padding: 6px 0;
+  font-size: 12px;
+  line-height: 1.428571429;
+  border-radius: 15px;
+}
+.btn-circle.btn-lg {
+  width: 50px;
+  height: 50px;
+  padding: 10px 16px;
+  font-size: 18px;
+  line-height: 1.33;
+  border-radius: 25px;
+}
+.btn-circle.btn-xl {
+  width: 70px;
+  height: 70px;
+  padding: 10px 16px;
+  font-size: 24px;
+  line-height: 1.33;
+  border-radius: 35px;
+}
+
+
+.btn-circle {
+  width: 30px;
+  height: 30px;
+  text-align: center;
+  padding: 6px 0;
+  font-size: 12px;
+  line-height: 1.428571429;
+  border-radius: 15px;
+}
+.btn-circle.btn-lg {
+  width: 50px;
+  height: 50px;
+  padding: 10px 16px;
+  font-size: 18px;
+  line-height: 1.33;
+  border-radius: 25px;
+}
+.btn-circle.btn-xl {
+  width: 70px;
+  height: 70px;
+  padding: 10px 16px;
+  font-size: 24px;
+  line-height: 1.33;
+  border-radius: 35px;
+}
+.vertical-center {
+  margin: 0;
+  position: absolute;
+  top: 50%;
+  -ms-transform: translateY(-50%);
+  transform: translateY(-50%);
+}
+
+
+#game-state-display a, #game-state-display a:hover, #game-state-display a:active{
+  text-decoration: none;
+  color: inherit;
+}
+
+.hover-effect-grow {
+transition: 0.1s;
+transform: scale(1.0);
+
+}
+
+.hover-effect-grow:hover {
+
+  transform: scale(1.03);
+
+}
+
+.answers-cover {
+position: relative;
+z-index: 10;
+opacity: 25%;
+background-color: black;
+width: 100%;
+}
+
+#card-backs .game-card {
+  display:block;
+}
+
+.master-card-backs > .card-back-answer-group{
+  float:left;
+}
+
+.answer-grouping-container {
+  display: flex;
+  width: min-content;
+  padding: 5px;
+  margin: 10px;
+  margin-top: 4px;
+  border: 5px solid;
+  border-radius: 1rem;
+
+
+}
+
+
+@media screen and (max-width: 350px) {
+  .answer-grouping-container {
+    margin-left: -5px;
+  }
 }
