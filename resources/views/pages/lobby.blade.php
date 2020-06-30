@@ -34,7 +34,7 @@
 
 
 
-    <div class="content-fluid">
+    <div class="content-fluid" id="content-screen">
 	  <div class="row" style="width: 100%">
 	  <div class="col-0 col-md-1 cold-lg-2"></div>
         <main role="main" class="col-12 col-md-10 col-lg-8">
@@ -217,6 +217,15 @@
 		function startGame(){
 			socket.emit("start-game");
 			$("#start-game").attr("onclick","console.log('Second Click detected.')");
+			$("#content-screen").html(`
+			<div class="m-3">
+			<span class="spinner-border m-4" style="display:inline-block" role="status">
+				<span class="sr-only">Loading...</span>
+			</span>
+			<span class="h1 mt-3" style="display:inline-block; position: absolute" >Starting Game... </span>
+
+			</div>
+			`);
 		}
 
       </script>
