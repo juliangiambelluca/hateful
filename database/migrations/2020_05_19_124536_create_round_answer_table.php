@@ -19,6 +19,7 @@ class CreateRoundAnswerTable extends Migration
             $table->integer('round_id');	
             $table->integer('answer_id')->nullable();
             $table->integer('player_roaster_id')->nullable();
+            $table->integer('order')->nullable();
             $table->boolean('shortlisted')->nullable();
             $table->boolean('iswinner')->nullable();
             $table->integer('player_id');	
