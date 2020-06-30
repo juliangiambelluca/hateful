@@ -127,6 +127,7 @@ let notify = io.on('connection', (socket) => {
 
 		updatePlayerStates(socket.userID, null, "player-has-answered", true);
 
+		//Check if everyone has answered yet
 		let queryValues = ["id", "players", "game_id", gameID, "connected", 1, "ismaster", 0, "state", "player-has-answered", "created_at"];
 		let playersAnswered = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? AND ?? = ? ORDER BY ?? DESC", queryValues);
 		
@@ -152,17 +153,21 @@ let notify = io.on('connection', (socket) => {
 
 	socket.on('master-confirmed-winner', async (dirtyWinnerID) => {
 
+		console.log("master-confirmed-winner");
+
 		if(dirtyWinnerID.length > 10){
 				return;
 		} else if(dirtyWinnerID !== null){
-			if (!dirtyWinnerID[0].match(/^[0-9]+$/i)) {
+			if (!String(dirtyWinnerID).match(/^[0-9]+$/i)) {
 				return;
 			}
 		} else {
 			return;
 		}
 
-		updatePlayerStates(socket.gameID, "winner-chosen", "winner-chosen");
+		console.log("Dirty Winner Id PASSED");
+
+
 
 		// queryValues = ["id", "players", "game_id", gameID, "connected", 1, "ismaster", 0, "status", "player-has-answered", "created_at"];
 		// let playersAnswered = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? AND ?? = ? ORDER BY ?? DESC", queryValues);
@@ -181,7 +186,13 @@ let notify = io.on('connection', (socket) => {
 
 		await processConfirmedWinner(socket, winnerID);
 		console.log("finished processing confrimed winners");
-		socket.to(socket.gameID).emit('update-your-state');
+
+
+		await updatePlayerStates(socket.gameID, "winner-chosen", "winner-chosen");
+
+
+
+		io.in(socket.gameID).emit('update-your-state');
 
 	});
 
@@ -1009,15 +1020,15 @@ async function processConfirmedPlayerAnswers(socket, answerIDS) {
 
 			//Shortlist answer
 			const playerRoasterID = answerIDS[i].replace('roaster','');
-			queryValues = ["round_answer", "shortlisted", 1, "round_id", latestRound[0].id, "player_id", socket.userID, "player_roaster_id", playerRoasterID];
-			mysqlCustom("UPDATE ?? SET ?? = ? WHERE ?? = ? AND ?? = ? AND ?? = ? ", queryValues);
+			queryValues = ["round_answer", "shortlisted", 1, "order", i, "round_id", latestRound[0].id, "player_id", socket.userID, "player_roaster_id", playerRoasterID];
+			mysqlCustom("UPDATE ?? SET ?? = ?, ?? = ? WHERE ?? = ? AND ?? = ? AND ?? = ? ", queryValues);
 			
 			//No need to score it
 		} else {
 
 			//Shortlist answer
-			queryValues = ["round_answer", "shortlisted", 1, "round_id", latestRound[0].id, "player_id", socket.userID, "answer_id", answerIDS[i]];
-			mysqlCustom("UPDATE ?? SET ?? = ? WHERE ?? = ? AND ?? = ? AND ?? = ? ", queryValues);
+			queryValues = ["round_answer", "shortlisted", 1, "order", i, "round_id", latestRound[0].id, "player_id", socket.userID, "answer_id", answerIDS[i]];
+			mysqlCustom("UPDATE ?? SET ?? = ?, ?? = ? WHERE ?? = ? AND ?? = ? AND ?? = ? ", queryValues);
 
 			//score answer
 			
@@ -1045,7 +1056,7 @@ async function processConfirmedPlayerAnswers(socket, answerIDS) {
 }
 
 async function processConfirmedWinner(socket, winnerID) {
-	console.log("processConfirmedWinner, answerIDS:" + JSON.stringify(answerIDS));
+	console.log("processConfirmedWinner, winnerID:" + JSON.stringify(winnerID));
 
 	queryValues = ["id", "question_id", "rounds", "game_id", socket.gameID, "id"];
 	const latestRound = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? ORDER BY ?? DESC LIMIT 1", queryValues);
@@ -1054,8 +1065,12 @@ async function processConfirmedWinner(socket, winnerID) {
 	// const roundQuestion = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? LIMIT 1", queryValues);
 
 	//Select the shortlisted answers
-	queryValues = [latestRound[0].question_id, latestRound[0].id];
-	const shortlistedAnswersFromQuestionAnswer = await mysqlCustom("SELECT round_answer.answer_id, question_answer.score FROM answers, question_answer, round_answer WHERE question_answer.answer_id = round_answer.answer_id AND question_answer.question_id = ? AND round_answer.round_id = ? AND round_answer.shortlisted = 1", queryValues);
+	queryValues = [latestRound[0].id, latestRound[0].question_id];
+	const shortlistedAnswersFromQuestionAnswer = await mysqlCustom(`
+	SELECT round_answer.answer_id, question_answer.score 
+	FROM round_answer, question_answer
+	WHERE round_answer.round_id = ? AND round_answer.shortlisted = 1 AND question_answer.answer_id = round_answer.answer_id AND question_answer.question_id = ?
+	`, queryValues);
 
 
 	let offeredAnswers;
@@ -1066,12 +1081,13 @@ async function processConfirmedWinner(socket, winnerID) {
 		offeredAnswers = shortlistedAnswersFromQuestionAnswer;
 		
 		//Select the winner answers (shortlisted by the winner)
-		queryValues = [latestRound[0].question_id, latestRound[0].id, winnerID, latestRound[0].id, winnerID];
-		winnerAnswers = await mysqlCustom(
-		`SELECT round_answer.answer_id, round_answer.player_roaster_id, question_answer.score 
-		FROM question_answer, round_answer 
-		WHERE (question_answer.answer_id = round_answer.id AND question_answer.question_id = ? AND question_answer.answer_id = round_answer.answer_id AND round_answer.round_id = ? AND round_answer.shortlisted = 1 AND round_answer.player_id = ?) 
-		OR (round_answer.shortlisted = 1 AND round_answer.player_roaster_id <> NULL AND round_answer.round_id = ? AND round_answer.player_id = ?);`, queryValues);
+		queryValues = [latestRound[0].id, winnerID, latestRound[0].question_id, latestRound[0].id, winnerID];
+		winnerAnswers = await mysqlCustom(`
+		SELECT round_answer.answer_id, round_answer.player_roaster_id, question_answer.score 
+		FROM round_answer, question_answer 
+		WHERE (round_answer.round_id = ? AND round_answer.player_id = ? AND round_answer.shortlisted = 1 AND question_answer.question_id = ? AND question_answer.answer_id = round_answer.answer_id)
+		OR (round_answer.round_id = ? AND round_answer.player_id = ? AND round_answer.shortlisted = 1 AND round_answer.player_roaster_id <> NULL);
+		`, queryValues);
 
 	} else {
 		//No score from Question Answer found. Using default from answers table
@@ -1079,12 +1095,13 @@ async function processConfirmedWinner(socket, winnerID) {
 		queryValues = [latestRound[0].id];
 		offeredAnswers = await mysqlCustom("SELECT answers.id, answers.score FROM answers, round_answer WHERE answers.id = round_answer.answer_id AND round_answer.round_id = ? AND round_answer.shortlisted = 1", queryValues);
 		//Select the winner answers (shortlisted by the winner)
-		queryValues = [latestRound[0].question_id, latestRound[0].id, winnerID, latestRound[0].id, winnerID];
-		winnerAnswers = await mysqlCustom(
-		`SELECT round_answer.answer_id, round_answer.player_roaster_id, answers.score
-		FROM question_answer, round_answer, answers
-		WHERE (answers.id = round_answer.answer_id AND question_answer.answer_id = round_answer.id AND question_answer.question_id = ? AND question_answer.answer_id = round_answer.answer_id AND round_answer.round_id = ? AND round_answer.shortlisted = 1 AND round_answer.player_id = ?) 
-		OR (round_answer.shortlisted = 1 AND round_answer.player_roaster_id <> NULL AND round_answer.round_id = ? AND round_answer.player_id = ?);`, queryValues);
+		queryValues = [latestRound[0].id, winnerID, latestRound[0].id, winnerID];
+		winnerAnswers = await mysqlCustom(`
+		SELECT round_answer.answer_id, round_answer.player_roaster_id, answers.score
+		FROM round_answer, answers
+		WHERE (round_answer.round_id = ? AND round_answer.player_id = ? AND round_answer.shortlisted = 1 AND answers.id = round_answer.answer_id )
+		OR (round_answer.round_id = ? AND round_answer.player_id = ? AND round_answer.shortlisted = 1 AND round_answer.player_roaster_id <> NULL);
+		`, queryValues);
 		
 	}	
 	console.log("winner answers" + winnerAnswers);
@@ -1121,10 +1138,10 @@ async function processConfirmedWinner(socket, winnerID) {
 			// 	chosenAnswers = await mysqlCustom("SELECT answers.id, answers.score FROM answers WHERE answers.id = ?;", queryValues);
 			// }
 			
-			setTimeout(() => {
+			// setTimeout(() => {
 				
-			console.log("Chosen Answer(s): " + chosenAnswers);
-			}, 1000);
+			// console.log("Chosen Answer(s): " + chosenAnswers);
+			// }, 1000);
 
 			scoreCard(winnerAnswers[i], offeredAnswers, "question_answer", latestRound[0].question_id);
 		}
@@ -1215,7 +1232,7 @@ async function getMasterAnswers(socket){
 
 	//get shortlisted round_answer rows for this round.
 	queryValues = ["answer_id", "player_id", "player_roaster_id", "round_answer", "round_id", latestRound[0].id, "shortlisted", 1];
-	const playerAnswers = await mysqlCustom("SELECT ??, ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? ORDER BY player_id DESC, id ASC", queryValues);
+	const playerAnswers = await mysqlCustom("SELECT ??, ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? ORDER BY player_id, `order` ASC", queryValues);
 	console.log("shortlistedAnswers=" + playerAnswers.length)
 
 	let blanks = 1;
@@ -1309,98 +1326,207 @@ async function showWinners(socket){
 		const latestRound = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? ORDER BY ?? DESC", queryValues);
 	
 		//get shortlisted round_answer rows for this round.
-		queryValues = ["answer_id", "player_roaster_id", "iswinner", "round_answer", "round_id", latestRound[0].id, "shortlisted", 1];
-		const playerAnswers = await mysqlCustom("SELECT ??, ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? ORDER BY RAND()", queryValues);
+		queryValues = ["answer_id", "player_roaster_id", "player_id", "iswinner", "round_answer", "round_id", latestRound[0].id, "shortlisted", 1];
+		const playerAnswers = await mysqlCustom("SELECT ??, ??, ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? ORDER BY player_id, `order` ASC", queryValues);
 		console.log("shortlistedAnswers=" + playerAnswers.length)
 	
-		//Create cards insert
+
+
+
+		let blanks = 1;
+		let checkForBlanksID = playerAnswers[0].player_id;
+		//Start at one because we'e already  ^ checked 0.
+		for (let index = 1; index < playerAnswers.length; index++) {
+			if (playerAnswers[index].player_id === checkForBlanksID){
+				blanks++;
+			}
+		}
+	
+
 		let answersInsert = "";
 		let currentAnswerText = "";
 		for (let i = 0; i < playerAnswers.length; i++) {
-			//Check if roaster card or not.
+			//Skip --don't print this card if it IS a winner
 			if(playerAnswers[i].iswinner == 1){
 				continue;
 			}
 
-				if(playerAnswers[i].answer_id != null){
-					//This row has an actual answer
-					//Make data for new game state
-					currentAnswerText = await mysqlSelect("answer", "answers", "id", playerAnswers[i].answer_id);
-					currentAnswerText = currentAnswerText[0].answer;
-					answersInsert += `<a class="click-card answer-not-selected" href="#">`
-				} else {
-					//This row has an actual answer
-					//Make data for new game state
-					currentAnswerText = await mysqlSelect("fullname", "players", "id", playerAnswers[i].player_roaster_id);
-					currentAnswerText = "<span class='text-capitalize'>" + currentAnswerText[0].fullname + ". </span>";
-					answersInsert += `<a class="click-card answer-not-selected" href="#">`
-				}
-				answersInsert += `
-				<div class="card game-card answer-card hover-effect-grow">
-				<div class="card-body game-card-body p-2">
-					<div class="card-text-answer">
-						${currentAnswerText}
-					</div>
-					<div class="hateful-watermark">
-					hateful.io
-					</div>
-				</div>
-				</div>
-				</a>
-				`
+
+			if(i===0){
+				answersInsert += `<div class="answer-grouping-container">`;
+			}
+			if(i % blanks === 0 && i !== 0 && i !== playerAnswers.length){
+				answersInsert += `</div><div class="answer-grouping-container">`;
+			}
 
 
-				
+			//Check if roaster card or not.
+			if(playerAnswers[i].player_roaster_id == null){
+				//This row has an actual answer
+				//Make data for new game state
+				let currentAnswerResult = await mysqlSelect("answer", "answers", "id", playerAnswers[i].answer_id);
+				currentAnswerText = currentAnswerResult[0].answer;
+
+			} else {
+				//This row has an player roaster
+				//Make data for new game state
+				let currentRoasterResult = await mysqlSelect("fullname", "players", "id", playerAnswers[i].player_roaster_id);
+				currentAnswerText = "<span class='text-capitalize'>" + currentRoasterResult[0].fullname + ". </span>";
+				// answersInsert += `<a class="click-card answer-not-selected" id="roaster-answer-${playerAnswers[i].player_roaster_id}" onclick="pickAnswer(${playerAnswers[i].player_roaster_id}, 'player-name-roaster', 'shortlisted')" href="#">`;
+
+			}
+	
+	
+			answersInsert += `
+			<div class="card game-card answer-card">
+			   <div class="card-body game-card-body p-2">
+				  <div class="card-text-answer">
+					  ${currentAnswerText}
+				  </div>
+				  <div class="hateful-watermark">
+				  hateful.io
+				   </div>
+			   </div>
+			 </div>
+			`
+	
 		}
 	
+		answersInsert += "</div>";
+	
 		socket.emit('show-results', answersInsert);
+
 		printWinnerOnTop(socket, playerAnswers);
 	}
 
 
 	async function printWinnerOnTop(socket, playerAnswers){
 
-		//Create cards insert
+
+
+		let blanks = 1;
+		let checkForBlanksID = playerAnswers[0].player_id;
+		//Start at one because we'e already  ^ checked 0.
+		for (let index = 1; index < playerAnswers.length; index++) {
+			if (playerAnswers[index].player_id === checkForBlanksID){
+				blanks++;
+			}
+		}
+	
+
+
 		let answersInsert = "";
 		let currentAnswerText = "";
 		for (let i = 0; i < playerAnswers.length; i++) {
-			//Check if roaster card or not.
+			//Skip --don't print this card if it aint a winner
 			if(playerAnswers[i].iswinner != 1){
 				continue;
 			}
 
-				if(playerAnswers[i].answer_id != null){
-					//This row has an actual answer
-					//Make data for new game state
-					currentAnswerText = await mysqlSelect("answer", "answers", "id", playerAnswers[i].answer_id);
-					currentAnswerText = currentAnswerText[0].answer;
-					answersInsert += `<a class="click-card answer-not-selected" href="#">`
-				} else {
-					//This row has an actual answer
-					//Make data for new game state
-					currentAnswerText = await mysqlSelect("fullname", "players", "id", playerAnswers[i].player_roaster_id);
-					currentAnswerText = "<span class='text-capitalize'>" + currentAnswerText[0].fullname + ". </span>";
-					answersInsert += `<a class="click-card answer-not-selected" href="#">`
+			//Check if roaster card or not.
+			if(playerAnswers[i].answer_id != null){
+				//This row has an actual answer
+				//Make data for new game state
+				currentAnswerText = await mysqlSelect("answer", "answers", "id", playerAnswers[i].answer_id);
+				currentAnswerText = currentAnswerText[0].answer;
+				if(i===0){
+					answersInsert += `<div  style="display: flex; float: left;">`;
 				}
-				answersInsert += `
-				<div class="card game-card answer-card hover-effect-grow">
-				<div class="card-body game-card-body p-2">
-					<div class="card-text-answer">
-						${currentAnswerText}
-					</div>
-					<div class="hateful-watermark">
-					👑 Winner
-					</div>
-				</div>
-				</div>
-				</a>
-				`
+				if(i % blanks === 0 && i !== 0 && i !== playerAnswers.length){
+					answersInsert += `</div><div  style="display: flex; float: left;">`;
+				}
+			} else {
+				//This row has an actual answer
+				//Make data for new game state
+				currentAnswerText = await mysqlSelect("fullname", "players", "id", playerAnswers[i].player_roaster_id);
+				currentAnswerText = "<span class='text-capitalize'>" + currentAnswerText[0].fullname + ". </span>";
+				// answersInsert += `<a class="click-card answer-not-selected" id="roaster-answer-${playerAnswers[i].player_roaster_id}" onclick="pickAnswer(${playerAnswers[i].player_roaster_id}, 'player-name-roaster', 'shortlisted')" href="#">`;
+				if(i===0){
+					answersInsert += `<div style="display: flex; float: left;">`;
+				}
+				if(i % blanks === 0 && i !== 0 && i !== playerAnswers.length){
+					answersInsert += `</div><div style="display: flex; float: left;">`;
+				}
+			}
+	
+	
+			answersInsert += `
+			<div class="card game-card answer-card">
+			   <div class="card-body game-card-body p-2">
+				  <div class="card-text-answer">
+					  ${currentAnswerText}
+				  </div>
+				  <div class="hateful-watermark">
+				  👑 Winner
+				   </div>
+				   
+			   </div>
+			 </div>
+			
+			`
+	
+		}
+	
+		answersInsert += "</div>";
+	
+	
+	
+		socket.emit('print-winners', answersInsert);
+	
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+		// //Create cards insert
+		// let answersInsert = "";
+		// let currentAnswerText = "";
+		// for (let i = 0; i < playerAnswers.length; i++) {
+
+
+		// 		if(playerAnswers[i].answer_id != null){
+		// 			//This row has an actual answer
+		// 			//Make data for new game state
+		// 			currentAnswerText = await mysqlSelect("answer", "answers", "id", playerAnswers[i].answer_id);
+		// 			currentAnswerText = currentAnswerText[0].answer;
+		// 			answersInsert += `<a class="click-card answer-not-selected" href="#">`
+		// 		} else {
+		// 			//This row has an actual answer
+		// 			//Make data for new game state
+		// 			currentAnswerText = await mysqlSelect("fullname", "players", "id", playerAnswers[i].player_roaster_id);
+		// 			currentAnswerText = "<span class='text-capitalize'>" + currentAnswerText[0].fullname + ". </span>";
+		// 			answersInsert += `<a class="click-card answer-not-selected" href="#">`
+		// 		}
+		// 		answersInsert += `
+		// 		<div class="card game-card answer-card hover-effect-grow">
+		// 		<div class="card-body game-card-body p-2">
+		// 			<div class="card-text-answer">
+		// 				${currentAnswerText}
+		// 			</div>
+		// 			<div class="hateful-watermark">
+		// 			👑 Winner
+		// 			</div>
+		// 		</div>
+		// 		</div>
+		// 		</a>
+		// 		`
 
 
 				
-		}
+		// }
 	
-		socket.emit('print-winners', answersInsert);
 	}
 
 
