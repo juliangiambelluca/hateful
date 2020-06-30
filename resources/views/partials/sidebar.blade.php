@@ -5,9 +5,9 @@
       </div>
       <ul class="c-sidebar-nav">
         <li class="c-sidebar-nav-title">Timer</li>
-        <li class="c-sidebar-nav-item"><a class="c-sidebar-nav-link" href="index.html">
-           00:45<span class="badge badge-danger">Time's Up!</span></a></li>
-           
+        <li class="c-sidebar-nav-item"><a class="c-sidebar-nav-link font-weight-bold" id="sidebar-timer">
+           </a></li>
+           <!-- 00:45<span class="badge badge-danger">Time's Up!</span> -->
          
 
            <div class="row">           

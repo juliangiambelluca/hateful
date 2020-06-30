@@ -61,7 +61,7 @@
 }
 "><span class="c-sidebar-nav-title text-left m-0 p-2" href="#">Timer</span>
 		<br>
-		<span class="c-header-topbar-name">00:45</span>
+		<span class="c-header-topbar-name" id="topbar-timer"></span>
 		</li>
 		<li class="c-header-nav-item px-3" style="width: 75%;
     display: inline-block;
