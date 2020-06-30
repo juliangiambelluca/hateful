@@ -16,6 +16,9 @@ play hateful
 
 <!-- <script src="{{ asset('js/socket.io.js') }}"></script> -->
 <script>
+
+
+
 	//on page load
 		const socket = io('http://127.0.0.1:3000');
 
@@ -85,7 +88,7 @@ play hateful
 		});
 
 		socket.on('show-player-question', function(questionCard){
-			alert("show-player-question");
+			// alert("show-player-question");
 			$("#round-question-card").html(questionCard)
 		});
 
@@ -122,6 +125,48 @@ play hateful
 		socket.on('print-winners', (winnerCards) => {			
 			$("#card-backs").html(winnerCards)
 		});
+
+		
+		socket.on('start-timer', (timerTimeLeft) => {		
+			socket.timerTimeLeft = timerTimeLeft;
+
+			socket.timerInterval = setInterval(() => {
+				socket.timerTimeLeft -= 1;
+				$("#topbar-timer").html(secsToMMSS(socket.timerTimeLeft));
+				$("#sidebar-timer").html(secsToMMSS(socket.timerTimeLeft));
+			}, 1000);	
+
+			socket.gameTimer = setTimeout((socket) => {
+				clearInterval(socket.timerInterval);
+				
+			}, (socket.timerTimeLeft * 1000), socket);
+		});
+
+		socket.on('times-up', () => {			
+			try {
+				clearInterval(socket.timerInterval);
+				clearTimeout(socket.gameTimer);
+				
+				$("#topbar-timer").html("00:00 <span class='badge badge-danger'>Time's Up!</span>");
+				$("#sidebar-timer").html("00:00 <span class='badge badge-danger'>Time's Up!</span>");
+			} catch (error) {
+				//There was no timer... not an issue...
+			}
+		});
+
+
+		//custom functions
+		function secsToMMSS(seconds) {
+			var sec_num = parseInt(seconds, 10); // don't forget the second param
+			var hours   = Math.floor(sec_num / 3600);
+			var minutes = Math.floor((sec_num - (hours * 3600)) / 60);
+			var seconds = sec_num - (hours * 3600) - (minutes * 60);
+
+			if (hours   < 10) {hours   = "0"+hours;}
+			if (minutes < 10) {minutes = "0"+minutes;}
+			if (seconds < 10) {seconds = "0"+seconds;}
+			return minutes + ':' + seconds;
+		}
 
 		//Game Functions
 		
@@ -476,7 +521,7 @@ play hateful
 			
 			$("#card-backs").css("display", "flex");
 			$("#confirm-answer").css("display", "none");
-			socket.emit("master-confirmed-winner", shortlistedAnswers);
+			socket.emit("master-confirmed-winner", shortlistedWinner);
 
 			$("#card-backs").html(`
 					<div class="spinner-border m-4" style="float: left;" role="status">
