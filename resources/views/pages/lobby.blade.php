@@ -27,21 +27,21 @@
   <nav class="navbar navbar-dark bg-dark d-block p-0 ">
 
     <div class="row d-sm-flex pt-1 pl-2" style="width: 100%; ">
-
-      <div class="col-12  col-md-4  col-lg-3  text-white " ><h4 class="m-2" style="font-weight: 800"> hateful. [beta]</h4></div>  
-
+	<div class="col-0 col-md-1 cold-lg-2"></div>
+      <div class="col-12 col-md-10 col-lg-8 text-white " ><h4 class="m-2 ml-3" style="font-weight: 800"> hateful. [beta]</h4></div>  
+	  <div class="col-0 col-md-1 cold-lg-2"></div>
     </nav>
 
 
 
-    <div class="content-fluid">
-      <div class="row" style="width: 100%">
-        <main role="main" class="col-md-9 col-lg-10 ml-5">
-
+    <div class="content-fluid" id="content-screen">
+	  <div class="row" style="width: 100%">
+	  <div class="col-0 col-md-1 cold-lg-2"></div>
+        <main role="main" class="col-12 col-md-10 col-lg-8">
           <div id="game-table">
             <div class="row">
               <div class="col-md-6">
-                <h2 class="m-4">Lobby. {{ session('userID') }}</h2>
+                <h2 class="m-4">Lobby.</h2>
                 <div class="m-4">
                   <div class="row">
                     <div class="col-md-6">
@@ -67,17 +67,14 @@
 			  
 			  </div>
               <div class="col-md-6">
-			  <div class="row">
-	<!-- DEBUGGING RESPONSE -->
-	<div id="debug" style="overflow-wrap: anywhere; "></div>
-</div>
               </div>
 
             </div>
           </div>      
           <!-- End Game table -->
 
-          <div id="name-cards-container">
+
+		<div id="name-cards-container" class="name-cards-container">
             <div class="row m-3">
               <div class="col-12 p-0">
                 <div id="name-cards" class="x-scrolling-wrapper">
@@ -86,7 +83,16 @@
             </div>  
           </div>
 
-        </main>
+
+
+		</main>
+		
+
+
+
+
+		<div class="col-0 col-md-1 cold-lg-2"></div>
+
       </div>
     </div>
 
@@ -102,7 +108,6 @@
 
     <script>
         //on page load
-        $(function () {
 		const socket = io('http://127.0.0.1:3000');
 
           //User inputs in session have already been sanitised. json laravel blade directive not working for me.
@@ -138,9 +143,9 @@
           });
 
 		  socket.on('enableGameStart', function () {
-			@if(session('isMaster') === true)
+			@if(session('isHost') === true)
 				$("#start-game").html(`
-				<button id="start-game" class="btn btn-lg mt-4 py-3 btn-success" 
+				<button onclick="startGame()" id="start-game" class="btn btn-lg mt-2 py-3 btn-success" 
 				style="min-width: 50%; max-width: 83%;">
 				Start Game.</button>   
 				`);
@@ -155,13 +160,10 @@
 				`);
 			@endif
 
-			document.getElementById("start-game").addEventListener("click", function () {
-              socket.emit("start-game");
-		 	 });
 		  });
 
 		  socket.on('disableGameStart', function () {
-			@if(session('isMaster') === true)
+			@if(session('isHost') === true)
 				$("#start-game").html(`
 				<div class="alert alert-dark alert-dismissible fade show" role="alert">
 					<strong>Waiting for at least 3 players</strong>. You won't be able to start the game until then.
@@ -182,23 +184,21 @@
 			@endif
 		  });
 
-		});
-
 		  
         function displayNameCards(players){
 			let render = "";
 
-			for(i=0;i<players[0].length;i++){
-				id = players[0][i];
-				fullname = players[1][i];
-
+			for(i=0;i<players.length;i++){
 				// if(!(document.getElementById("player-" + id))){
 				nameCardsTemplate = `
-				<div id="player-${id}" class="card game-card answer-card  ">
+				<div id="player-${players[i].id}" style="float: left" class="card game-card answer-card  ">
 				<div class="card-body game-card-body">
-				<div class="card-text-answer">
-				${fullname}
+				<div class="card-text-answer text-capitalize">
+				${players[i].fullname}.
 				</div>
+				<div class="hateful-watermark">
+				  hateful.io
+				   </div>
 				</div>
 				</div> 
 				`;
@@ -211,7 +211,19 @@
 		}
 		
 
-	
+		function startGame(){
+			socket.emit("start-game");
+			$("#start-game").attr("onclick","console.log('Second Click detected.')");
+			$("#content-screen").html(`
+			<div class="m-3">
+			<span class="spinner-border m-4" style="display:inline-block" role="status">
+				<span class="sr-only">Loading...</span>
+			</span>
+			<span class="h1 mt-3" style="display:inline-block; position: absolute" >Starting Game... </span>
+
+			</div>
+			`);
+		}
 
       </script>
 

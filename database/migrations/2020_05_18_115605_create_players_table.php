@@ -17,10 +17,11 @@ class CreatePlayersTable extends Migration
             $table->increments('id');
             $table->timestamps();
             $table->string('fullname');	
-            $table->integer('score')->nullable();
+            $table->integer('score')->default(0);
             $table->string('session', 64);	
             $table->boolean('connected');
             $table->boolean('ismaster');
+            $table->boolean('ishost');
             $table->string('state')->nullable();;
             $table->integer('game_id');	
 

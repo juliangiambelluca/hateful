@@ -1,83 +1,101 @@
-<main role="main" class="col-md-9 col-lg-10 ml-sm-auto">
+<span id="state-instruction"></span>
 
 <div id="game-table">
-  <div class="row pt-3 pl-2">
-  
-    <div class="col-6 col-md-5 col-lg-4 col-xl-3">
-      <div class="card game-card current-question question-card">
-        <div class="card-body game-card-body p-2 center">
-          <div class="card-text-question ">
-            They said we were crazy. They said we couldn’t put __________________ inside of _________.<br> They were wrong.
-          </div>
+    <div class="row">
+	    <div class="col-12 pr-0">
+      <div style="float:left" class="pl-1 pt-1" id="round-question-card">
+        <div class="spinner-border m-3" role="status">
+         <span class="sr-only">Loading...</span>
         </div>
       </div>
-    </div>  
-    
-    <div id="confirm-answer"  class="col-6 col-md-7 col-lg-6 col-xl-9 p-0">
-      @include('partials.confirm-answer')
-    </div>
-    <div id="card-backs" style="display:none" class="col-6 col-sm-8 col-lg-9">
-      @include('partials.card-backs')
-    </div>
-  </div> 
-  <!-- End row  -->
-</div>      
-<!-- End Game table -->
+	        <div id="confirm-answer" style="display:none" >
+    			<div class="x-scrolling-wrapper ml-1 p-1 ">
 
-<div id="my-cards">
-  @include('partials.my-cards')
+					<!-- Some padding to encourage side scrolling on mobile -->
+					<!-- <div class="m-3 d-md-none"></div> -->
+
+          <span id="confirm-answer-cards" style="display:contents">
+          
+          </span>
+
+					<div class="confirm-button-holder"  style="display: contents; height: 100px; width: 100px; overflow: hidden;">
+         			    <button type="button" id="confirm-button" style="position: sticky; display: none; opacity: 0%;" height="70px" width="70px" class="btn vertical-center  ml-2 btn-lg btn-circle btn-disabled "><i class="fas fa-check"></i></button>
+       			    </div>
+
+         		</div>
+			</div>
+			
+			<div class="x-scrolling-wrapper ml-1 p-1" id="card-backs">
+			</div>
+        	
+      	</div>
+	</div> 
+</div> 
+<!-- End  TOP row  -->
+
+
+  <!-- End Game table -->
+<div class="row mt-4 mb-5">
+	<div class="col-12">
+		<div class="p-1" id="my-answer-cards">
+      <div class="spinner-border m-4" style="float: left;" role="status">
+        <span class="sr-only">Loading...</span>
+    </div>
+    <h1 class="mt-3" style="display:inline-block; position: absolute;">Ripping off Cards Against Humanity...</h1>
+		</div>
+	</div>
 </div>
 
 </main>
+  
+  
+  
+  
+  <!-- Modal -->
+  <div class="modal" id="myModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"  role="document" id="write-answer-modal-dialog">
+  <div class="modal-content" id="write-answer-modal-content">
+    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+      <span aria-hidden="true">&times;</span>
+    </button>
+  
+  <div class="modal-body">
+    <div class="form-group" style="height: 100% !Important">
+        <textarea class="form-control write-answer-input card-text-answer" placeholder="write something witty..." id="write-answer-input"></textarea>
+      </div>
+  </div>
+  
+  </div>
+  </div>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/js/bootstrap.min.js"></script>
 
-
-
-
-<!-- Modal -->
-<div class="modal" id="myModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
-<div class="modal-dialog modal-dialog-centered"  role="document" id="write-answer-modal-dialog">
-<div class="modal-content" id="write-answer-modal-content">
-  <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-    <span aria-hidden="true">&times;</span>
-  </button>
-
-<div class="modal-body">
-  <div class="form-group" style="height: 100% !Important">
-      <textarea class="form-control write-answer-input card-text-answer" placeholder="write something witty..." id="write-answer-input"></textarea>
-    </div>
-</div>
-
-</div>
-</div>
-</div>
-
-<script>
-$('#myModal').on('shown.bs.modal', function () {
-$('#write-answer-input').trigger('focus')
-
-answerModalWidth = $('#write-answer-modal-content').width();
-answerModalHeight = $('#write-answer-modal-content').height();
-
-$('#write-answer-modal-content').css("transition", "0s");
-$('#write-answer-modal-content').fadeOut(0);
-$('#write-answer-modal-dialog').fadeOut(0);
-$('#write-answer-modal-content').css("filter", "blur(100px)");
-
-if (answerModalHeight > answerModalWidth){
-//landscape. card height at 90% via css
-$('#write-answer-modal-content').width((answerModalHeight * 0.7) + "px")
-
-} else {
-//portrait. card width at 90% via css
-$('#write-answer-modal-content').height((answerModalWidth * 1.5) + "px")
-}
-
-
-$('#write-answer-modal-content').css("transition", "0.2s");
-$('#write-answer-modal-content').fadeIn(100);
-$('#write-answer-modal-dialog').fadeIn(100);
-
-$('#write-answer-modal-content').css("filter", "blur(0px)");
-
-})
-</script>
+  <script>
+    $('#myModal').on('shown.bs.modal', function () {
+    $('#write-answer-input').trigger('focus')
+    
+    answerModalWidth = $('#write-answer-modal-content').width();
+    answerModalHeight = $('#write-answer-modal-content').height();
+    
+    $('#write-answer-modal-content').css("transition", "0s");
+    $('#write-answer-modal-content').fadeOut(0);
+    $('#write-answer-modal-dialog').fadeOut(0);
+    $('#write-answer-modal-content').css("filter", "blur(100px)");
+    
+    if (answerModalHeight > answerModalWidth){
+    //landscape. card height at 90% via css
+    $('#write-answer-modal-content').width((answerModalHeight * 0.7) + "px")
+    
+    } else {
+    //portrait. card width at 90% via css
+    $('#write-answer-modal-content').height((answerModalWidth * 1.5) + "px")
+    }
+    
+    
+    $('#write-answer-modal-content').css("transition", "0.2s");
+    $('#write-answer-modal-content').fadeIn(100);
+    $('#write-answer-modal-dialog').fadeIn(100);
+    
+    $('#write-answer-modal-content').css("filter", "blur(0px)");
+    
+    })
+    </script>

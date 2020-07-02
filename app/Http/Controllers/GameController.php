@@ -79,7 +79,7 @@ class GameController extends Controller
     public function createGame(Request $request){
         //Validate Inputs
         $attributeNames = array(
-            'input-name' => 'Name',
+            'input-name' => 'name',
         );
         $customMessages = array();
         $rules = array(
@@ -116,8 +116,10 @@ class GameController extends Controller
             'fullname' => $inputFullname,
             'session' => $newSessionToken,
             'connected' => false,
-
-            'ismaster' => 1
+            'state' => 'no-state',
+            'ismaster' => 1,
+            'ishost' => 1,
+            'score' => 0
         ]);
         //Save new player in relation to this game.
         $game->players()->save($player);
@@ -128,6 +130,7 @@ class GameController extends Controller
         session(['gamePassword' => $game->password]);
         session(['gameStarted' => false]);
         session(['isMaster' => true]);
+        session(['isHost' => true]);
         session(['userID' => $player->id]);
         session(['fullname' => $player->fullname]);
         session(['sessionToken' => $player->session]);

@@ -19,6 +19,8 @@ class CreateGamesTable extends Migration
             $table->string('password', 64);	
             $table->string('hash', 8);	
             $table->string('state')->nullable();	
+            $table->bigInteger('timer_start')->nullable();	
+            $table->integer('timer_length')->nullable();	
             $table->boolean('started');	
         });
     }

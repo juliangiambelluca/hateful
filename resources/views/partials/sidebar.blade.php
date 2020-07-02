@@ -1,150 +1,50 @@
+<div class="c-sidebar c-sidebar-dark c-sidebar-fixed c-sidebar-lg-show" id="sidebar">
+      <div class="c-sidebar-brand d-md-down-none">
+         <h4 class="p-1" style="font-weight: 800">hateful.io [beta]</h4>
 
-    <nav class="col-md-3 col-lg-2 d-none d-md-block bg-light ">
-      <div class="">
-      
-          <div>
-          <div class="card-body contacts_body p-2">
-
-						<ui class="contacts">
-						<li class="game-password" style="margin-bottom: 0px!important;">
-						<hr>
-							<div class="d-flex bd-highlight">
-								<div class="user_info">
-									<span>00:45</span>
-								</div>
-							</div>
-							<hr>
-</li>
-            <li class="game-password" style="margin-bottom: 0px!important;">
-							<div class="d-flex bd-highlight">
-								<div class="user_info">
-									<span>game link:</span>
-									<p>hateful/fb0c61</p>
-								</div>
-							</div>
-            </li>
-            <li class="game-password">
-							<div class="d-flex bd-highlight">
-								<div class="user_info">
-									<span>game password:</span>
-									<p>4f0aed</p>
-								</div>
-							</div>
-						</li>
-						<li class="active">
-							<div class="d-flex bd-highlight">
-								<div class="img_cont">
-									<img src="https://static.turbosquid.com/Preview/001292/481/WV/_D.jpg" class="rounded-circle user-image">
-									<span class="online_icon"></span>
-								</div>
-								<div class="user_info">
-                <span> <i class="fas fa-crown"></i> John cena</span>
-									<p>Sam</p>
-								</div>
-							</div>
-						</li>
-						<li>
-							<div class="d-flex bd-highlight">
-								<div class="img_cont">
-									<img src="https://2.bp.blogspot.com/-8ytYF7cfPkQ/WkPe1-rtrcI/AAAAAAAAGqU/FGfTDVgkcIwmOTtjLka51vineFBExJuSACLcBGAs/s320/31.jpg" class="rounded-circle user-image">
-									<span class="online_icon offline"></span>
-								</div>
-								<div class="user_info">
-									<span>Carole baskin</span>
-									<p>George</p>
-								</div>
-							</div>
-						</li>
-						<li>
-							<div class="d-flex bd-highlight">
-								<div class="img_cont">
-									<img src="https://i.pinimg.com/originals/ac/b9/90/acb990190ca1ddbb9b20db303375bb58.jpg" class="rounded-circle user-image">
-									<span class="online_icon"></span>
-								</div>
-								<div class="user_info">
-									<span>lightweight</span>
-									<p>Sami</p>
-								</div>
-							</div>
-						</li>
-						<li>
-							<div class="d-flex bd-highlight">
-								<div class="img_cont">
-									<img src="https://static.turbosquid.com/Preview/001214/650/2V/boy-cartoon-3D-model_D.jpg" class="rounded-circle user-image">
-									<span class="online_icon offline"></span>
-								</div>
-								<div class="user_info">
-									<span>John Doe</span>
-								</div>
-							</div>
-            </li>
-            <li>
-							<div class="d-flex bd-highlight">
-								<div class="img_cont">
-									<img src="https://static.turbosquid.com/Preview/001214/650/2V/boy-cartoon-3D-model_D.jpg" class="rounded-circle user-image">
-									<span class="online_icon offline"></span>
-								</div>
-								<div class="user_info">
-									<span>John Doe</span>
-								</div>
-							</div>
-            </li>
-            <li>
-							<div class="d-flex bd-highlight">
-								<div class="img_cont">
-									<img src="https://static.turbosquid.com/Preview/001214/650/2V/boy-cartoon-3D-model_D.jpg" class="rounded-circle user-image">
-									<span class="online_icon offline"></span>
-								</div>
-								<div class="user_info">
-									<span>John Doe</span>
-								</div>
-							</div>
-            </li>
-            <li>
-							<div class="d-flex bd-highlight">
-								<div class="img_cont">
-									<img src="https://static.turbosquid.com/Preview/001214/650/2V/boy-cartoon-3D-model_D.jpg" class="rounded-circle user-image">
-									<span class="online_icon offline"></span>
-								</div>
-								<div class="user_info">
-									<span>John Doe</span>
-								</div>
-							</div>
-            </li>
-            <li>
-							<div class="d-flex bd-highlight">
-								<div class="img_cont">
-									<img src="https://static.turbosquid.com/Preview/001214/650/2V/boy-cartoon-3D-model_D.jpg" class="rounded-circle user-image">
-									<span class="online_icon offline"></span>
-								</div>
-								<div class="user_info">
-									<span>John Doe</span>
-								</div>
-							</div>
-            </li>
-            <li>
-							<div class="d-flex bd-highlight">
-								<div class="img_cont">
-									<img src="https://static.turbosquid.com/Preview/001214/650/2V/boy-cartoon-3D-model_D.jpg" class="rounded-circle user-image">
-									<span class="online_icon offline"></span>
-								</div>
-								<div class="user_info">
-									<span>John Doe</span>
-								</div>
-							</div>
-            </li>
-            <li>
-							<div class="d-flex bd-highlight">
-								<div class="img_cont">
-									<img src="https://static.turbosquid.com/Preview/001214/650/2V/boy-cartoon-3D-model_D.jpg" class="rounded-circle user-image">
-									<span class="online_icon offline"></span>
-								</div>
-								<div class="user_info">
-									<span>John Doe</span>
-								</div>
-							</div>
-						</li>
-						</ui>
-					</div>
       </div>
-    </nav>
+      <ul class="c-sidebar-nav ">
+        <li class="c-sidebar-nav-title">Timer</li>
+        <li class="c-sidebar-nav-item"><a class="c-sidebar-nav-link h4 font-weight-bold" id="sidebar-timer">
+           00:00
+           <!-- 00:45<span class="badge badge-danger">Time's Up!</span> -->
+           </a></li>
+           
+         
+ 
+           <div class="row">           
+               <div class="col-6 pr-0">  
+                 <li class="c-sidebar-nav-title" style=" ">Game Link&nbsp;</li>
+                 <li class="c-sidebar-nav-item"style=""><span class="c-sidebar-nav-link">
+                  hateful.io/{{ session("gameHash") ?? ''}}&nbsp;
+                 </span></li>
+               </div>
+               <div class="col-6"> 
+                <li class="c-sidebar-nav-title" style="">Password&nbsp;</li>
+                 <li class="c-sidebar-nav-item" style=""><a class="c-sidebar-nav-link">{{ session("gamePassword") ?? ''}}</a>
+                </li>
+                </div>
+              </div>
+
+          
+              <li class="c-sidebar-nav-title">Round Master</li>
+       
+         <li class="c-sidebar-nav-item">
+            <a class="c-sidebar-nav-link" id="sidebar-round-master">
+              
+            </a>
+         </li>
+
+          
+         <li class="c-sidebar-nav-title">Leaderboard</li>
+
+
+         <span id="sidebar-leaderboard">
+
+         </span>
+         
+
+       
+      </ul>
+      <!-- <button class="c-sidebar-minimizer c-class-toggler" type="button" data-target="_parent" data-class="c-sidebar-minimized"></button> -->
+    </div>

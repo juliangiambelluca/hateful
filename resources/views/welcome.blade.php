@@ -1,7 +1,7 @@
 @extends('layouts.home')
 
 @section('title')
-hateful.
+hateful.io
 @endsection
 
 @section('content')
@@ -20,11 +20,11 @@ hateful.
 
     <div class="position-relative overflow-hidden p-3 p-md-5 m-md-3 text-center bg-dark">
       <div class="col-md-5 p-lg-5 mx-auto my-5 text-white">
-        <h1 class="display-4" style="font-weight: 800;">hateful.</h1>
+        <h1 class="display-4" style="font-weight: 800;">hateful.io</h1>
         A blatent rip-off of <a href="http://www.cardsagainsthumanity.com" class="font-weight-normal"><u>Cards Against Humanity</u></a>, 
     but you can write your own cards and roast your friends.      <br>
 <br>
-       <a class="btn btn-lg btn-success" href="#">Play the Game</a>
+       <a class="btn btn-lg btn-success" href="{{ url('/new-game') }}">Play the Game</a>
        <br>
        <br>
     <small class="font-weight-light">Nothing about this website is endorsed by Cards Against Humanity. It is distributed under a Creative Commons - Attribution - Noncommercial - Share Alike license. It kind of means I can their jokes if I give them credit.</small>
