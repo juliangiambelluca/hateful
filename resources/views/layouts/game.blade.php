@@ -82,7 +82,7 @@
             
             <script src="{{ URL::to('js/app.js') }}"></script>
             <script src="{{ URL::to('js/coreui.bundle.min.js') }}"></script>
-            <script src="{{ URL::to('js/main.js') }}"></script>
+            <!-- <script src="{{ URL::to('js/main.js') }}"></script> -->
 
 @yield('content')
 
