@@ -1,3 +1,10 @@
+//Configuration
+const hatefulConfig = {
+	answerCards: 10,       //Number of answer cards to offer
+	writeYourOwn: false    //Enable write your own card feature (counts as one more answer card)
+};
+
+
 const fs = require('fs');
 const path = require("path");
 
@@ -131,7 +138,7 @@ let notify = io.on('connection', (socket) => {
 					getRoundQuestion(socket, "self");
 					showWinners(socket);
 					startTimer(io, socket, 20, async function(io, socket) {
-						await updatePlayerStates(socket, "new-round")
+						await updatePlayerStates(socket, "new-round", "no-state")
 						requestStateUpdate(io, socket);
 					});
 					break;
@@ -855,7 +862,7 @@ async function getPlayerAnswers(socket) {
 
 	//Get best answers for that question from question_answers except answers already offered.
 	queryValues = ["answer_id", "question_answer", "score", averageScore, "question_id", latestRound[0].question_id, "answer_id", "round_answer", "round_id", latestRound[0].id];
-	const topRandomAnswers = await mysqlCustom("SELECT DISTINCT ?? AS id FROM ?? WHERE ?? >= ? AND ?? = ? EXCEPT SELECT ?? AS id FROM ?? WHERE ?? = ? ORDER BY RAND() LIMIT 3", queryValues);
+	const topRandomAnswers = await mysqlCustom("SELECT DISTINCT ?? AS id FROM ?? WHERE ?? >= ? AND ?? = ? EXCEPT SELECT ?? AS id FROM ?? WHERE ?? = ? ORDER BY RAND() LIMIT 4", queryValues);
 	console.log("topRandomAnswers=" + topRandomAnswers.length)
 
 	//Get Worst answers for that question to give them a chance except answers already offered.
@@ -868,7 +875,7 @@ async function getPlayerAnswers(socket) {
 	console.log("roasterNameAnswer=" + roasterNameAnswer.length)
 	
 	//Pad out answers with random answers (except answers already offered) from "answers" in case that question has not enough scored answers.
-	const answersMissing = 9 - (topRandomAnswers.length + lowRandomAnswers.length + 1);
+	const answersMissing = hatefulConfig.answerCards - (topRandomAnswers.length + lowRandomAnswers.length + 1);
 	console.log("Answers Missing=" + answersMissing)
 
 	queryValues = ["id", "answers", "answer_id", "round_answer", "round_id", latestRound[0].id, answersMissing];
@@ -962,8 +969,10 @@ async function showPlayerAnswers(socket){
 		`
 	}
 
-	const answerCards = `
-
+	let answerCards;
+	
+	if(hatefulConfig.writeYourOwn === true){
+		answerCards = `
 				<a onclick="$('#myModal').modal(true)" id="answer-custom" class="click-card answer-not-selected" href="#">
 					<div class="card game-card answer-card hover-effect-grow ">
 						<div class="card-body game-card-body p-2">
@@ -980,6 +989,9 @@ async function showPlayerAnswers(socket){
 				</a>
 				${answersInsert}
 	`;
+	} else {
+		answerCards = `${answersInsert}`;
+	}
 
 	socket.emit('show-player-answers', answerCards);
 
@@ -1273,7 +1285,7 @@ async function showCardBacks(io, socket, cardBacks){
 	for (let index = 0; index < shortlistedAnswerSets; index++) {
 		console.log("Iteration of cardbackview +");
 		cardBacksView += `
-		<div class="card-back-answer-group cards-back-master">
+		<div class="card-back-answer-group">
 			<div class="card game-card card-back">
 				<div class="card-body game-card-body p-2">
 					<div class="card-text-answer">
