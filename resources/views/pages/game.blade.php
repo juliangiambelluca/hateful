@@ -5,6 +5,7 @@ play hateful
 @endsection
 
 @section('content')
+
 <div class="row">
 <div class="col-md-12 col-lg-12">
 	<div id="game-state-display"></div>
@@ -12,12 +13,16 @@ play hateful
 </div>
 
 
-<script src="https://cdn.jsdelivr.net/npm/socket.io-client@2/dist/socket.io.js"></script>
+<!-- <script src="../../../node_modules/confetti-js/dist/index.min.js"></script> -->
 
+<script src="https://cdn.jsdelivr.net/npm/socket.io-client@2/dist/socket.io.js"></script>
+<script src="js/confetti.js"></script>
 <!-- <script src="{{ asset('js/socket.io.js') }}"></script> -->
 <script>
 
-
+// var confettiSettings = { target: 'my-canvas' };
+// var confetti = new ConfettiGenerator(confettiSettings);
+// confetti.render();
 
 	//on page load
 		const socket = io('http://127.0.0.1:3000');
@@ -34,22 +39,31 @@ play hateful
 
 		socket.on('newHost', function (newHost) {
 			if(newHost[0] == userID){
-				setTimeout(() => {
-				alert("The host disconnected. You are the new host.");
+				setTimeout((newHost) => {
+				if(!newHost[3]==="no-alert"){
+				// alert("The host disconnected. You are the new host.");
+				}
 				location.reload();
-				}, 1000);
+				}, 1000, newHost);
 			} else {
-				alert("The host disconnected. " + newHost[1] + " is the new host.");
+				if(!newHost[3]==="no-alert"){
+					// alert("The host disconnected. " + newHost[1] + " is the new host.");
+				}
 			}
 		});
 		socket.on('newMaster', function (newMaster) {
 			if(newMaster[0] == userID){
-				setTimeout(() => {
-				alert("The Round Master disconnected. You are the new Round Master.");
-				location.reload();
-				}, 1000);
+				setTimeout((newMaster) => {
+					if(!newMaster[3]==="no-alert"){
+						alert("The Round Master timed-out or disconnected. You are the new Round Master.");
+					}
+					location.reload();
+				}, 1000, newMaster);
 			} else {
-				alert("The Round Master disconnected. " + newMaster[1] + " is the Round Master host.");
+				if(!newMaster[3]==="no-alert"){
+					alert("The Round Master timed-out or disconnected. " + newMaster[1] + " is the Round Master host.");
+				}
+				
 			}
 		});
 		
@@ -66,7 +80,7 @@ play hateful
 		//Receive players in room
 		socket.on('playersInLobby', function (players) {
 			//Receiving array of names.
-			displayNameCards(players);
+			updateLeaderboard(players);
 		});
 
 		//Game State logic
@@ -85,6 +99,14 @@ play hateful
 				$("#game-state-display").css("opacity", "1");
 				$("#game-state-display").css("filter", "blur(0px)");
 			}, 50);
+
+			showFunnyLoader("#my-answer-cards");
+
+
+		});
+
+		socket.on('show-loader', function (displayData) {
+			showFunnyLoader("#game-state-display");
 		});
 
 		socket.on('show-player-question', function(questionCard){
@@ -100,14 +122,32 @@ play hateful
 			$("#my-answer-cards").html(answerCards);
 		});
 
-		socket.on('get-your-answers', () => {
-			console.log("Get Your Answers!")
-			socket.emit('what-is-my-state');
-		});
+		// socket.on('get-your-answers', () => {
+		// 	console.log("Get Your Answers!")
+		// 	socket.emit('what-is-my-state');
+		// 	$("#my-answer-cards").html(answerCards);
+
+		// 	<div class="p-1" id="my-answer-cards">
+		// 		<div class="spinner-border m-4" style="float: left;" role="status">
+		// 			<span class="sr-only">Loading...</span>
+		// 		</div>
+		// 		<h1 class="mt-3" style="display:inline-block">Ripping off Cards Against Humanity...</h1>
+			
+		// });
 
 		socket.on('update-your-state', () => {
 			console.log("Updating state...")
 			socket.emit('what-is-my-state');
+			
+			$("#game-state-display").html(`
+					<div class="spinner-border m-4" style="float: left;" role="status">
+						<span class="sr-only">Loading...</span>
+					</div>
+					<h1 class="mt-3" style="display:inline-block; position: absolute;">Loading...</h1>
+			`);
+
+			
+		// });
 		});
 
 		socket.on('update-card-backs', (cardBacksView) => {			
@@ -126,7 +166,16 @@ play hateful
 			$("#card-backs").html(winnerCards)
 		});
 
-		
+		socket.on('you-won', () => {			
+			confetti.start(20000, 45, 150)
+			$("#state-instruction").html("<h1 class='m-2'>You won this round! <span class='badge h5 text-weight-bold badge-success'>+100 Points</span></h1>")
+		});
+
+		socket.on('you-lost', () => {			
+			goldConfetti.start(750, 300)
+			// $("#game-state-display").prepend("<h1>You won this round! <span class='badge badge-success'>+100 Points</span></h1>")
+		});
+
 		socket.on('start-timer', (timerTimeLeft) => {		
 			socket.timerTimeLeft = timerTimeLeft;
 
@@ -139,6 +188,11 @@ play hateful
 			socket.gameTimer = setTimeout((socket) => {
 				clearInterval(socket.timerInterval);
 				
+				$("#topbar-timer").html("<span class='badge badge-danger'>Time's Up!</span>");
+				$("#sidebar-timer").html("00:00 <span class='badge badge-danger'>Time's Up!</span>");
+			
+				showFunnyLoader("#game-state-display");
+				
 			}, (socket.timerTimeLeft * 1000), socket);
 		});
 
@@ -147,8 +201,6 @@ play hateful
 				clearInterval(socket.timerInterval);
 				clearTimeout(socket.gameTimer);
 				
-				$("#topbar-timer").html("00:00 <span class='badge badge-danger'>Time's Up!</span>");
-				$("#sidebar-timer").html("00:00 <span class='badge badge-danger'>Time's Up!</span>");
 			} catch (error) {
 				//There was no timer... not an issue...
 			}
@@ -200,6 +252,8 @@ play hateful
 			console.log("pick question executed");
 			socket.emit("master-picked-question", questionID);
 			$("#question-" + questionID).attr("onclick","console.log('Second Click detected.')");
+			showFunnyLoader("#game-state-display");
+
 		}
 
 
@@ -503,13 +557,11 @@ play hateful
 			$("#confirm-answer").css("display", "none");
 			socket.emit("player-confirmed-answers", shortlistedAnswers);
 
-			$("#card-backs").html(`
+			$("#my-answer-cards").html(`
 			<div class="spinner-border m-4" style="float: left;" role="status">
 				<span class="sr-only">Loading...</span>
 			</div>
-			<h1 class="mt-3" style="display:inline-block" >Waiting for players to answer.</h1>
-				
-
+			<h1 class="mt-3" style="display:inline-block">Waiting for other players to answer.</h1>
 			`)
 		}
 
@@ -518,19 +570,13 @@ play hateful
 				alert("No answer")
 				return;
 			}
+			showFunnyLoader("#game-state-display");
 			
-			$("#card-backs").css("display", "flex");
-			$("#confirm-answer").css("display", "none");
 			socket.emit("master-confirmed-winner", shortlistedWinner);
-
-			$("#card-backs").html(`
-					<div class="spinner-border m-4" style="float: left;" role="status">
-				<span class="sr-only">Loading...</span>
-			</div>
-			<h1 class="mt-3" style="display:inline-block">Getting results ready...</h1>
-			`)
+			
 		}
 
+		
 		function disableAnswers(disable){
 			//disable all cards
 			//re-enable the one's we've already selected
@@ -560,6 +606,174 @@ play hateful
 				$(".answer-not-selected").children().addClass("hover-effect-grow");
 			}
 		}
+
+
+
+		function updateLeaderboard(players){
+			let render = "";
+			let sidebarLeaderboard = "";
+			let topbarLeaderboard = "";
+			let sidebarRoundMaster = "";
+			let topbarRoundMaster = "";
+
+			for(i=0;i<players.length;i++){
+
+				if(players[i].ismaster === 1){
+					//topbar round master
+					 topbarRoundMaster = `
+					<div class="c-header-topbar-name">${players[i].fullname}</div>
+					<span class="badge-topbar badge-success d-inline-block mx-2">${players[i].score}</span>
+					`;
+					//sidebar round master
+					 sidebarRoundMaster = `
+					${players[i].fullname}
+					<span class="badge badge-success">${players[i].score}</span>
+					`;
+					continue;
+				}
+				
+				//sidebar leaderboard
+				sidebarLeaderboard += `
+				<li class="c-sidebar-nav-item">
+					<a class="c-sidebar-nav-link">
+					${players[i].fullname}
+					<span class="badge badge-info">${players[i].score}</span>
+					</a>
+				</li>
+				`;
+				//topbar leader board
+				topbarLeaderboard += `
+				<div>
+					<div class="c-header-topbar-name-long">${players[i].fullname}</div>
+					<span class="badge-topbar badge-info d-inline-block mx-2">${players[i].score}</span>
+				</div>
+				`;
+			}
+
+			$("#sidebar-round-master").html(sidebarRoundMaster);
+			$("#topbar-round-master").html(topbarRoundMaster);
+			$("#sidebar-leaderboard").html(sidebarLeaderboard);
+			$("#topbar-leaderboard").html(topbarLeaderboard);
+
+		}
+
+
+
+
+
+		function showFunnyLoader(element){
+			$(element).html(`
+					<div class="spinner-border m-4" style="float: left;" role="status">
+				<span class="sr-only">Loading...</span>
+			</div>
+			<h1 class="mt-3" style="display:inline-block; position: absolute;">${funnyLoadText()}</h1>
+			`);
+		}
+		function funnyLoadText(){
+			const jokes = [
+			'Generating witty dialog...',
+			'Swapping time and space...',
+			'Spinning violently around the y-axis...',
+			'Tokenizing real life...',
+			'Bending the spoon...',
+			'Filtering morale...',
+			'Ripping off Cards Against Humanity...',
+			'Ripping off Cards Against Humanity...',
+			'The bits are breeding',
+			'We\'re building the buildings as fast as we can',
+			'Please wait while the little elves draw your map',
+			'Checking the gravitational constant in your locale...',
+			'Go ahead -- hold your breath!',
+			'The server is powered by a lemon and two electrodes.',
+			'Testing your patience...',
+			'Moving satellites into position',
+			'Aligning planets...',
+			'The bits are flowing slowly today...',
+			'The last time I tried this the monkey didn\'t survive. Let\'s hope it works better this time.',
+			'My other loading screen is much faster.',
+			'Testing on Timmy... We\'re going to need another Timmy.',
+			'Reconfoobling energymotron...',
+			'Are we there yet?',
+			'It\'s not you. It\'s me.',
+			'Counting backwards from Infinity',
+			'Embiggening Prototypes',
+			'Do you come here often?',
+			'Warning: Don\'t set yourself on fire.',
+			'We\'re baking you a cookie.',
+			'Creating time-loop inversion field',
+			'Spinning the wheel of fortune...',
+			'Loading the enchanted bunny...',
+			'Looking for exact change...',
+			'I feel like im supposed to be loading something. . .',
+			'Adjusting flux capacitor...',
+			'Waiting for the sloth to start moving.',
+			'I swear I\'m almost done.',
+			'Let\'s take a mindfulness minute...',
+			'Reminding you to stay hydrated...',
+			'Breathing in through the nose... and out through the mouth...',
+			'Listening for the sound of one hand clapping...',
+			'Putting the icing on the cake. The cake is not a lie...',
+			'Cleaning off the cobwebs...',
+			'We need more dilithium crystals',
+			'Looking for the internet',
+			'Downloading the internet',
+			'Connecting Neurotoxin Storage Tank...',
+			'Granting wishes...',
+			'Spinning the hamster…',
+			'Convincing AI not to turn evil..',
+			'Computing the secret to life, the universe, and everything.',
+			'Saving water by showering together...',
+			'Constructing additional pylons...',
+			'Walking the dog...',
+			'Dividing by zero...',
+			'Cracking military-grade encryption...',
+			'Simulating traveling salesman...',
+			'Entangling superstrings...',
+			'Twiddling thumbs...',
+			'Searching for plot device...',
+			'Laughing at your pictures-i mean, loading...',
+			'Sending your data to the Govern-i -i mean, our servers.',
+			'Looking for sense of humour, please hold on.',
+			'Please wait while the intern refills my coffee.',
+			'Making progress...',
+			'Please wait while I convert this bug to a feature...',
+			'Winter is coming...',
+			'Installing dependencies...',
+			'Scrolling through Facebook...',
+			'Scrolling through Instagram...',
+			'Looking at memes...',
+			'Making some memes...',
+			'Finding someone to hold my beer...',
+			'Just finishing off the website...',
+			'Let\'s hope it\'s worth the wait',
+			'Ordering a pizza...',
+			'Updating dependencies...',
+			'Please wait... Consulting the manual...',
+			'Loading funny message...',
+			'What is the difference btwn a hippo and a zippo? One is really heavy, the other is a little lighter',
+			'Please wait, while we purge the Decepticons for you. Yes, You can thanks us later!',
+			'Mining bitcoins...',
+			'Downloading more RAM..',
+			'Initializing the initializer...',
+			'Optimizing the optimizer...',
+			'Shovelling coal into the server...',
+			'Building a wall...',
+			'Everything in this universe is either a potato or not a potato',
+			'Updating Updater...',
+			'Downloading Downloader...',
+			'Debugging Debugger...',
+			'Reading the Terms and Conditions for you.',
+			'Deleting all your hidden porn...',
+			'Running with scissors...',
+			'Working, working...',
+			'Patience! This is difficult, you know...',
+			'Making a heart-warming bowl of spaghetti bolognese...',
+			'Toasting the bread...',
+			'Catching em\' all',
+			]
+			return jokes[Math.floor(Math.random() * jokes.length)];
+		}	
+
 
 </script>
 
