@@ -60,7 +60,8 @@ class PlayerController extends Controller
                     'connected' => false,
                     'state' => 'no-state',
                     'ismaster' => 0,
-                    'ishost' => 0
+                    'ishost' => 0,
+                    'score' => 0
                 ]);
                 //Save new player in relation to this game.
                 $oldGame->players()->save($player);
