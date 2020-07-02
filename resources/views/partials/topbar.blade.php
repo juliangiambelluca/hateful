@@ -34,7 +34,7 @@
 }
 @media screen and (min-width: 370px) {
 	.c-header-topbar-name {
-	max-width: 200px;
+	max-width: 200px; 
 }
 .c-header-topbar-name-long {
 	max-width: 282px;
@@ -52,24 +52,29 @@
 
 <header id="mobile-topbar" class="c-header c-header-light d-lg-none c-header-fixed">
     
-	<a onclick="toggleTopbar();" style="width: 100%" href="#">
+	<a onclick="toggleTopbar();" class="text-decoration-none" style="width: 100%" href="#">
     
     <ul class="c-header-nav" style="width: 100%">
-		<li class="c-header-nav-item px-3" style="width: 20%;
+		<li class="c-header-nav-item px-3" style="width: 25%;
     display: inline-block;
     vertical-align: middle;
 }
-"><span class="c-sidebar-nav-title text-left m-0 p-2" href="#">Timer</span>
+"><span class="c-sidebar-nav-title text-left mr-2 p-2" href="#">Timer</span>
 		<br>
-		<span class="c-header-topbar-name" id="topbar-timer"></span>
+		<span class="c-header-topbar-name" id="topbar-timer">00:00</span>
 		</li>
-		<li class="c-header-nav-item px-3" style="width: 75%;
+		<li class="c-header-nav-item px-3" style="width: 70%;
     display: inline-block;
     vertical-align: middle;
 }
-"><span class="c-sidebar-nav-title text-left m-0 p-2" href="#">Round Master</span>
+">
+
+
+<span class="c-sidebar-nav-title text-left m-0 p-2" href="#">Round Master</span>
 		<br>		
-		<div><div class="c-header-topbar-name">000000000000000000000000000000000000000</div><span class="badge-topbar badge-primary d-inline-block mx-2">800</span></div>
+		<div id="topbar-round-master">
+			<div class="ml-3">...</div>
+		</div>
 
 		</li>
 </a>
@@ -79,12 +84,9 @@
 		<ul class="c-header-nav" style="width: 100%">
 			<li class="c-header-nav-item px-3"><span class="c-sidebar-nav-title text-left m-0 p-2" href="#">Leaderboard</span>
 			<br>
-			<div><div class="c-header-topbar-name-long">Juan Pereira del La Cruz</div><span class="badge-topbar badge-primary d-inline-block mx-2">800</span></div>
-			<div><div class="c-header-topbar-name-long">John G</div><span class="badge-topbar badge-primary d-inline-block mx-2">800</span></div>
-			<div><div class="c-header-topbar-name-long">Leo Edwards</div><span class="badge-topbar badge-primary d-inline-block mx-2">800</span></div>
-			<div><div class="c-header-topbar-name-long">Tariq Poonwsasie</div><span class="badge-topbar badge-primary d-inline-block mx-2">800</span></div>
-			<div><div class="c-header-topbar-name-long">Jess Ball</div><span class="badge-topbar badge-primary d-inline-block mx-2">800</span></div>
-			<div><div class="c-header-topbar-name-long">El Priniciptito</div><span class="badge-topbar badge-primary d-inline-block mx-2">800</span></div>
+			<span id="topbar-leaderboard">
+
+			</span>
 
 			</li>
 			
@@ -92,12 +94,13 @@
 
 		<ul class="c-header-nav mt-2" style="width: 50%; float: left;">
 			<li class="c-header-nav-item px-3"><span class="c-sidebar-nav-title text-left m-0 p-2" href="#">Game Link</span>
-			<span class="c-header-topbar-name-long" href="#">hateful.io/234432</span>
+			<span class="c-header-topbar-name-long" href="#">hateful.io/{{ session("gameHash") ?? ''}}
+			</span>
 			</li>
 		</ul>
 		<ul class="c-header-nav mt-2" style="width: 50%">
 			<li class="c-header-nav-item px-3"><span class="c-sidebar-nav-title text-left m-0 p-2" href="#">Game Password</span>
-			<span class="c-header-topbar-name-long" href="#">fd2234</span>
+			<span class="c-header-topbar-name-long" href="#">{{ session("gamePassword") ?? ''}}</span>
 			</li>
 		</ul>
 	</div>
