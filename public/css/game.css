@@ -458,6 +458,11 @@ width: 100%;
 
 .master-card-backs > .card-back-answer-group{
   float:left;
+  display: block;
+  
+}
+.master-card-backs{
+  display: block;
 }
 
 .answer-grouping-container {
