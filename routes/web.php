@@ -18,11 +18,16 @@ use Illuminate\Http\Request;
         return view('welcome');
     })->name("homepage");
     
+    Route::get('/modal', function () {
+        return view('pages.maingm');
+    })->name("homepage");
+    
 
     Route::get('/new-game', [
         'uses' => 'GameController@findGame',
         'as' => 'new-game'
     ]);
+    
 
     Route::post('/create-game', [
         'uses' => 'GameController@createGame',
