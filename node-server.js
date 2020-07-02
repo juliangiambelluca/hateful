@@ -52,7 +52,7 @@ let notify = io.on('connection', (socket) => {
 				//STEP 1
 				case "player-waiting-for-question":
 					showPlayerQuestionWaitingScreen(socket);
-					startTimer(io, socket, 20, function() {newMaster(io, socket, null, true)});
+					startTimer(io, socket, 60, function() {newMaster(io, socket, null, true)});
 					break;
 				case "master-needs-questions":
 					//Reset staggering delay.
@@ -62,7 +62,7 @@ let notify = io.on('connection', (socket) => {
 
 					//waiting on master to pick question
 					//if master times out, change master - and if they're host, change host too.
-					startTimer(io, socket, 20, function() {newMaster(io, socket, null, true)});
+					startTimer(io, socket, 60, function() {newMaster(io, socket, null, true)});
 
 					// startTimer(50, change Master);
 					break;
@@ -71,7 +71,7 @@ let notify = io.on('connection', (socket) => {
 				case "master-waiting-for-answers":
 					//Master waiting for players to answer
 					showMasterAnswerWaitingScreen(socket);
-					startTimer(io, socket, 20, function() {proceedWithMissingAnswers(io, socket)});
+					startTimer(io, socket, 60, function() {proceedWithMissingAnswers(io, socket)});
 					break;
 				case "player-needs-answers":
 
@@ -90,7 +90,7 @@ let notify = io.on('connection', (socket) => {
 					//but will have to do until further refactoring of get player answers.
 
 					//If they don't answer in time they won't get a point
-					startTimer(io, socket, 20, function() {proceedWithMissingAnswers(io, socket)});
+					startTimer(io, socket, 60, function() {proceedWithMissingAnswers(io, socket)});
 					break;
 
 				
@@ -104,7 +104,7 @@ let notify = io.on('connection', (socket) => {
 					getRoundQuestion(socket, "self");
 					showPlayerAnswerWaiting(socket);
 					//If timer is already set (which it should be), they will just see a continuation of their previous countdown.
-					startTimer(io, socket, 20);
+					startTimer(io, socket, 60);
 					break;
 
 				//STEP 3
@@ -116,12 +116,12 @@ let notify = io.on('connection', (socket) => {
 
 					//waiting on master to pick question
 					//if master times out, change master - and if they're host, change host too.
-					startTimer(io, socket, 20,  function() {newMaster(io, socket, null, true)});
+					startTimer(io, socket, 60,  function() {newMaster(io, socket, null, true)});
 					break;
 				case "player-waiting-for-results":
 					showResultsWaitingScreen(socket);
 					//If timer is already set (which it should be), they will just see a continuation of their previous countdown.
-					startTimer(io, socket, 20,  function() {newMaster(io, socket, null, true)});
+					startTimer(io, socket, 60,  function() {newMaster(io, socket, null, true)});
 					break;
 
 				//STEP 4
