@@ -41,7 +41,7 @@
           <div id="game-table">
             <div class="row">
               <div class="col-md-6">
-                <h2 class="m-4">Lobby. {{ session('userID') }}</h2>
+                <h2 class="m-4">Lobby.</h2>
                 <div class="m-4">
                   <div class="row">
                     <div class="col-md-6">
@@ -188,20 +188,17 @@
         function displayNameCards(players){
 			let render = "";
 
-			for(i=0;i<players[0].length;i++){
-				id = players[0][i];
-				fullname = players[1][i];
-
+			for(i=0;i<players.length;i++){
 				// if(!(document.getElementById("player-" + id))){
 				nameCardsTemplate = `
-				<div id="player-${id}" style="float: left" class="card game-card answer-card  ">
+				<div id="player-${players[i].id}" style="float: left" class="card game-card answer-card  ">
 				<div class="card-body game-card-body">
-				<div class="card-text-answer">
-				${fullname}
+				<div class="card-text-answer text-capitalize">
+				${players[i].fullname}.
 				</div>
 				<div class="hateful-watermark">
-		  hateful.io
-		   </div>
+				  hateful.io
+				   </div>
 				</div>
 				</div> 
 				`;
