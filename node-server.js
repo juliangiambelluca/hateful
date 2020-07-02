@@ -39,7 +39,7 @@ let notify = io.on('connection', (socket) => {
 	});
 	
 	socket.on('start-game', function(){
-		startGame(socket);
+		startGame(io, socket);
 	});
 
 	socket.on('what-is-my-state', async function(){
@@ -49,73 +49,107 @@ let notify = io.on('connection', (socket) => {
 			console.log(socket.userID + "'s state is: " + userState);
 
 			switch (userState) {
+				//STEP 1
 				case "player-waiting-for-question":
 					showPlayerQuestionWaitingScreen(socket);
-					startTimer(io, socket, 90);
+					startTimer(io, socket, 20, function() {newMaster(io, socket, null, true)});
 					break;
 				case "master-needs-questions":
 					//Reset staggering delay.
 					io.in(socket.gameID).staggerDelay = 0;
 					console.log("STAGGERING DELAY: 	" + io.in(socket.gameID).staggerDelay)
 					getMasterQuestions(socket);
-					startTimer(io, socket, 90);
+
+					//waiting on master to pick question
+					//if master times out, change master - and if they're host, change host too.
+					startTimer(io, socket, 20, function() {newMaster(io, socket, null, true)});
 
 					// startTimer(50, change Master);
 					break;
+
+				//STEP 2
 				case "master-waiting-for-answers":
 					//Master waiting for players to answer
 					showMasterAnswerWaitingScreen(socket);
-					startTimer(io, socket, 90);
+					startTimer(io, socket, 20, function() {proceedWithMissingAnswers(io, socket)});
 					break;
 				case "player-needs-answers":
 
 					showMainGameTemplate(socket);
 					getRoundQuestion(socket);
 
-					//add 50ms to stagger delay
-					io.in(socket.gameID).staggerDelay += 50;
+					console.log(socket.userID + "Will Stagger By	" + io.in(socket.gameID).staggerDelay)
+
 					//Stagger answer getting to avoid duplicates being offered.
 					setTimeout(() => {
 						getPlayerAnswers(socket);
 					}, io.in(socket.gameID).staggerDelay);
-					
+					//add 500ms to stagger delay for next person
+					io.in(socket.gameID).staggerDelay += 500;
+					//getPlayerAnswers takes 500ms to execute. making each player wait multiple seconds is not ideal
+					//but will have to do until further refactoring of get player answers.
 
-					console.log("STAGGERING DELAY: 	" + io.in(socket.gameID).staggerDelay)
-
-					startTimer(io, socket, 90);
-					// startTimer(50, giveMaster any answers)
+					//If they don't answer in time they won't get a point
+					startTimer(io, socket, 20, function() {proceedWithMissingAnswers(io, socket)});
 					break;
+
+				
 				case "no-state":
 					newPlayerWaitForNextRound(socket);
 					break;
+
+				//STEP 2.5
 				case "player-has-answered":
 					showMainGameTemplate(socket, "self");
 					getRoundQuestion(socket, "self");
 					showPlayerAnswerWaiting(socket);
-					startTimer(io, socket, 90);
+					//If timer is already set (which it should be), they will just see a continuation of their previous countdown.
+					startTimer(io, socket, 20);
 					break;
+
+				//STEP 3
 				case "master-needs-answers":
 					//Master needs to see everyones card's
 					showMainGameTemplate(socket, "self");
 					getRoundQuestion(socket, "self");
 					getMasterAnswers(socket);
-					startTimer(io, socket, 90);
-					// startTimer(50, change Master)
+
+					//waiting on master to pick question
+					//if master times out, change master - and if they're host, change host too.
+					startTimer(io, socket, 20,  function() {newMaster(io, socket, null, true)});
 					break;
 				case "player-waiting-for-results":
 					showResultsWaitingScreen(socket);
-					startTimer(io, socket, 90);
+					//If timer is already set (which it should be), they will just see a continuation of their previous countdown.
+					startTimer(io, socket, 20,  function() {newMaster(io, socket, null, true)});
 					break;
-				case "winner-chosen":
+
+				//STEP 4
+				case "master-winner-chosen":
+					//Display winner
 					showMainGameTemplate(socket, "self");
 					getRoundQuestion(socket, "self");
 					showWinners(socket);
-					startTimer(io, socket, 35);
+					startTimer(io, socket, 20, async function(io, socket) {
+						await updatePlayerStates(socket, "new-round")
+						requestStateUpdate(io, socket);
+					});
+					break;
+				case "player-winner-chosen":
+					//Display winner
+					showMainGameTemplate(socket, "self");
+					getRoundQuestion(socket, "self");
+					showWinners(socket);
+					//Emit dummy timer
+					socket.emit('start-timer', 20);
+					break;
+				case "new-round":
+					showLoader(io, socket);
+					startNewRound(io, socket);
 					break;
 				default:
 					alertSocket(socket, "Please refresh the page. Something went wrong.")
 					//Set the user's state to no-state.
-					updatePlayerStates(socket, null, "no-state", true)
 					break;
 			}
 		} else {
@@ -203,7 +237,7 @@ async function joinUser(io, socket, dirtyUserID){
 			gameID = gameID[0].game_id;
 			gameID = parseInt(gameID, 10);
 
-			if(gameID === false){
+			if(userID === NaN){
 				//Reject bad input
 				socket.join("dodgyID");
 				io.in("dodgyID").emit('dodgyID');
@@ -393,7 +427,15 @@ async function disconnectUser(io, socket){
 async function masterPickedQuestion(io, socket, dirtyQuestionID){
 	await updatePlayerStates(socket, "master-waiting-for-answers", "player-needs-answers");
 	await calculateAndScoreQuestion(socket, dirtyQuestionID);
-	io.in(socket.gameID).emit('update-your-state');
+
+	requestStateUpdate(io, socket);
+}
+
+function requestStateUpdate(io, socket){
+	//Timeout to let the dust settle and avoid errors due to incomplete database updates.
+	setTimeout((socket, io) => {
+		io.in(socket.gameID).emit('update-your-state');
+	}, 2000, socket, io);
 }
 
 async function playerConfirmedAnswers(io, socket, dirtyAnswerIDS){
@@ -424,9 +466,7 @@ async function playerConfirmedAnswers(io, socket, dirtyAnswerIDS){
 
 	if(playersConnected.length === playersAnswered.length){
 		updatePlayerStates(socket, "master-needs-answers", "player-waiting-for-results");
-		setTimeout((io, socket) => {
-			io.in(socket.gameID).emit('update-your-state');
-		}, 500, io, socket);
+		requestStateUpdate(io, socket);
 	}
 
 	//if we made it this far, input is clean
@@ -452,20 +492,17 @@ async function masterConfirmedWinner(io, socket, dirtyWinnerID){
 	}
 
 	console.log("Dirty Winner Id PASSED");
-
 	//if we made it this far, input is clean
-
 	const winnerID = dirtyWinnerID;
+
+	scoreWinner(socket, winnerID);
 
 	await processConfirmedWinner(socket, winnerID);
 	console.log("finished processing confrimed winners");
 
+	await updatePlayerStates(socket, "master-winner-chosen", "player-winner-chosen");
 
-	await updatePlayerStates(socket, "winner-chosen", "winner-chosen");
-
-
-
-	io.in(socket.gameID).emit('update-your-state');
+	requestStateUpdate(io, socket);
 
 }
 
@@ -480,21 +517,14 @@ async function masterConfirmedWinner(io, socket, dirtyWinnerID){
 
 
 async function emitPlayersInLobby(io, gameID){
-		const queryValues = ["id", "fullname", "players", "game_id", gameID, "connected", 1];
-		const connectedPlayers = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ?", queryValues);
-		//Returns array of objects
-		let connFullnamesArr = [];
-		let connUserIDsArr = [];
-		for(i=0;i<connectedPlayers.length;i++){
-			connFullnamesArr.push(connectedPlayers[i].fullname);
-			connUserIDsArr.push(connectedPlayers[i].id);
-		}
-		// emitToLobby(gameID, 'playersInLobby', [connUserIDsArr, connFullnamesArr])
-		io.in(gameID).emit('playersInLobby', [connUserIDsArr, connFullnamesArr]);
+		const queryValues = ["id", "fullname", "score", "ismaster", "players", "game_id", gameID, "connected", 1];
+		const connectedPlayers = await mysqlCustom("SELECT ??, ??, ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? ORDER BY score DESC", queryValues);
+	
+		io.in(gameID).emit('playersInLobby', connectedPlayers);
 
 }
 
-function requestRefresh(io, gameID = null){
+function requestRefresh(io, socket, gameID = null){
 	if(gameID === null){
 		//emit refresh to socket.
 		socket.emit('refresh');
@@ -535,22 +565,36 @@ async function updatePlayerStates(socket, masterState = null, playerState = null
 
 //Game states logic
 
-async function startGame(socket){
+async function startGame(io, socket, masterID = null){
+	console.log("In start game!!!");
 	if(socket.userID == null){
 		return;
 	}
 		const gameID = socket.gameID;
-		const userID = socket.userID;
 
-		isHost = await mysqlSelect("ishost", "players", "id", userID);
+		let userID = socket.userID;
+
+		if(masterID != null){userID = masterID};
+
+		// isHost = await mysqlSelect("ishost", "players", "id", userID);
+		// //Returns array of objects
+		// //First row, ismaster attribute.
+		// isHost = isHost[0].ishost;		
+
+		// //Make sure this user is actually master otherwise request refresh.
+		// if (isHost != 1){
+		// 	return;
+		// }
+		isMaster = await mysqlSelect("ismaster", "players", "id", userID);
 		//Returns array of objects
 		//First row, ismaster attribute.
-		isHost = isHost[0].ishost;		
+		isMaster = isMaster[0].ismaster;		
 
 		//Make sure this user is actually master otherwise request refresh.
-		if (isHost != 1){
+		if (isMaster != 1){
 			return;
 		}
+
 		console.log("Is Host, Starting Game!")
 		const queryValues = ["rounds", "game_id", gameID];
 		await mysqlCustom("INSERT INTO ?? (??) VALUES (?);", queryValues);
@@ -559,11 +603,11 @@ async function startGame(socket){
 		
 		//For each player, set their new game state.
 		//updatePlayerState(gameID, masterState, playerState)
-		updatePlayerStates(socket, "master-needs-questions", "player-waiting-for-question")
+		await updatePlayerStates(socket, "master-needs-questions", "player-waiting-for-question")
 
 		//Tell everyone to refresh so laravel loads the game view.
 		setTimeout((io, gameID) => {
-			requestRefresh(io, gameID);
+			requestRefresh(io, socket, gameID);
 		}, 1000, io, gameID);
 		
 	
@@ -598,8 +642,8 @@ async function getMasterQuestions(socket) {
 	
 
 	queryValues = ["id", "question", "blanks", "questions", "score", averageScore];
-	let topRandonQuestions = await mysqlCustom("SELECT ??, ??, ?? FROM ?? WHERE ?? >= ? ORDER BY RAND() LIMIT 7", queryValues);
-	let lowRandomQuestions = await mysqlCustom("SELECT ??, ??, ?? FROM ?? WHERE ?? <= ? ORDER BY RAND() LIMIT 3", queryValues);
+	let topRandonQuestions = await mysqlCustom("SELECT DISTINCT ??, ??, ?? FROM ?? WHERE ?? >= ? ORDER BY RAND() LIMIT 7", queryValues);
+	let lowRandomQuestions = await mysqlCustom("SELECT DISTINCT ??, ??, ?? FROM ?? WHERE ?? <= ? ORDER BY RAND() LIMIT 3", queryValues);
 	let questions = topRandonQuestions;
 	questions = questions.concat(lowRandomQuestions);
 	shuffle(questions);
@@ -763,6 +807,8 @@ async function scoreCard(winnerCard, offeredCards, table, questionID = null) {
 }
 
 async function getPlayerAnswers(socket) {
+	console.log(socket.userID + "GETTING ASNWERS START TIME=" + Date.now())
+
 		//make sure theyre not master
 		isMaster = await mysqlSelect("ismaster", "players", "id", socket.userID);
 		//Returns array of objects
@@ -800,18 +846,25 @@ async function getPlayerAnswers(socket) {
 		averageScore = 1000;
 	}
 
+
+	////////////////////////////
+	// In future, you will need to do individual selects for each card
+	// and write them into round_answer immediately after each select
+	// in order to avoid players being given the same card
+	////////////////////////////
+
 	//Get best answers for that question from question_answers except answers already offered.
 	queryValues = ["answer_id", "question_answer", "score", averageScore, "question_id", latestRound[0].question_id, "answer_id", "round_answer", "round_id", latestRound[0].id];
-	const topRandomAnswers = await mysqlCustom("SELECT ?? AS id FROM ?? WHERE ?? >= ? AND ?? = ? EXCEPT SELECT ?? FROM ?? WHERE ?? = ? ORDER BY RAND() LIMIT 3", queryValues);
+	const topRandomAnswers = await mysqlCustom("SELECT DISTINCT ?? AS id FROM ?? WHERE ?? >= ? AND ?? = ? EXCEPT SELECT ?? AS id FROM ?? WHERE ?? = ? ORDER BY RAND() LIMIT 3", queryValues);
 	console.log("topRandomAnswers=" + topRandomAnswers.length)
 
 	//Get Worst answers for that question to give them a chance except answers already offered.
-	const lowRandomAnswers = await mysqlCustom("SELECT ?? AS id FROM ?? WHERE ?? <= ? AND ?? = ? EXCEPT SELECT ?? FROM ?? WHERE ?? = ? ORDER BY RAND() LIMIT 2", queryValues);
+	const lowRandomAnswers = await mysqlCustom("SELECT DISTINCT ?? AS id FROM ?? WHERE ?? <= ? AND ?? = ? EXCEPT SELECT ?? AS id FROM ?? WHERE ?? = ? ORDER BY RAND() LIMIT 2", queryValues);
 	console.log("lowRandomAnswers=" + lowRandomAnswers.length)
 	
 	//Add a random player name from the game as an answer except answers already offered.
-	queryValues = ["id", "players", "id", socket.userID, "game_id", socket.gameID, "player_roaster_id", "round_answer", "round_id", latestRound[0].id];
-	const roasterNameAnswer = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? <> ? AND ?? = ? EXCEPT SELECT ?? AS id FROM ?? WHERE ?? = ? ORDER BY RAND() LIMIT 1", queryValues);
+	queryValues = ["id", "players", "id", socket.userID, "game_id", socket.gameID, "player_roaster_id", "round_answer", "round_id", latestRound[0].id, "player_roaster_id"];
+	const roasterNameAnswer = await mysqlCustom("SELECT DISTINCT ?? FROM ?? WHERE ?? <> ? AND ?? = ? EXCEPT SELECT ?? AS id FROM ?? WHERE ?? = ? AND ?? IS NOT NULL ORDER BY RAND() LIMIT 1", queryValues);
 	console.log("roasterNameAnswer=" + roasterNameAnswer.length)
 	
 	//Pad out answers with random answers (except answers already offered) from "answers" in case that question has not enough scored answers.
@@ -819,7 +872,7 @@ async function getPlayerAnswers(socket) {
 	console.log("Answers Missing=" + answersMissing)
 
 	queryValues = ["id", "answers", "answer_id", "round_answer", "round_id", latestRound[0].id, answersMissing];
-	const randomPaddingAnswers = await mysqlCustom("SELECT ?? FROM ?? EXCEPT SELECT ?? FROM ?? WHERE ?? = ? ORDER BY RAND() LIMIT ?", queryValues);
+	const randomPaddingAnswers = await mysqlCustom("SELECT DISTINCT ?? FROM ?? EXCEPT SELECT ?? FROM ?? WHERE ?? = ? ORDER BY RAND() LIMIT ?", queryValues);
 	console.log("randomPaddingAnswers=" + randomPaddingAnswers.length)
 
 	let answerIDS = topRandomAnswers;
@@ -844,6 +897,8 @@ async function getPlayerAnswers(socket) {
 	setTimeout((socket) => {
 		showPlayerAnswers(socket);
 	}, 1500, socket);
+
+	console.log(socket.userID + "GETTING ASNWERS END TIME=" + Date.now())
 
 	return;
 }
@@ -1253,11 +1308,10 @@ function showPlayerAnswerWaiting(socket){
 	<div class="spinner-border m-4" style="float: left;" role="status">
     <span class="sr-only">Loading...</span>
 </div>
-<h1 class="mt-3" style="display:inline-block">Waiting for players to answer...</h1>
+<h1 class="mt-3" style="display:inline-block; position: absolute;">Waiting for other players to answer...</h1>
 	`	
-
+	//Show this player the text above
 	socket.emit('show-player-answers', data);
-data
 }
 
 async function getMasterAnswers(socket){
@@ -1298,7 +1352,7 @@ async function getMasterAnswers(socket){
 
 	console.log("Answer grouping container blansk: " + blanks);
 	//Create cards insert
-	let answersInsert = "";
+	let answersInsert = "<h2 class='mx-1 mb-4'>Pick a winner</h2>";
 	let currentAnswerText = "";
 	for (let i = 0; i < playerAnswers.length; i++) {
 
@@ -1475,6 +1529,11 @@ async function showWinners(socket){
 				continue;
 			}
 
+			if(playerAnswers[i].player_id === socket.userID){
+				socket.to(socket.gameID).emit("you-lost");
+				socket.emit("you-won");
+			}
+
 			//Check if roaster card or not.
 			if(playerAnswers[i].answer_id != null){
 				//This row has an actual answer
@@ -1521,75 +1580,15 @@ async function showWinners(socket){
 	
 		answersInsert += "</div>";
 	
-	
-	
 		socket.emit('print-winners', answersInsert);
 	
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-		// //Create cards insert
-		// let answersInsert = "";
-		// let currentAnswerText = "";
-		// for (let i = 0; i < playerAnswers.length; i++) {
-
-
-		// 		if(playerAnswers[i].answer_id != null){
-		// 			//This row has an actual answer
-		// 			//Make data for new game state
-		// 			currentAnswerText = await mysqlSelect("answer", "answers", "id", playerAnswers[i].answer_id);
-		// 			currentAnswerText = currentAnswerText[0].answer;
-		// 			answersInsert += `<a class="click-card answer-not-selected" href="#">`
-		// 		} else {
-		// 			//This row has an actual answer
-		// 			//Make data for new game state
-		// 			currentAnswerText = await mysqlSelect("fullname", "players", "id", playerAnswers[i].player_roaster_id);
-		// 			currentAnswerText = "<span class='text-capitalize'>" + currentAnswerText[0].fullname + ". </span>";
-		// 			answersInsert += `<a class="click-card answer-not-selected" href="#">`
-		// 		}
-		// 		answersInsert += `
-		// 		<div class="card game-card answer-card hover-effect-grow">
-		// 		<div class="card-body game-card-body p-2">
-		// 			<div class="card-text-answer">
-		// 				${currentAnswerText}
-		// 			</div>
-		// 			<div class="hateful-watermark">
-		// 			👑 Winner
-		// 			</div>
-		// 		</div>
-		// 		</div>
-		// 		</a>
-		// 		`
-
-
-				
-		// }
 	
 	}
 
-let gameTimers = [];
-let gameTimersGameIDPivot= [];
 
 async function startTimer(io, socket, timerLength = null, action = null){
 
-
 	socket.emit('times-up');
-
-	// io.in(socket.gameID).emit('times-up');
 
 	//select timer length, timerstart from game table where game id = socket game id
 	queryValues = ["timer_start", "timer_length", "games", "id", socket.gameID];
@@ -1606,65 +1605,183 @@ async function startTimer(io, socket, timerLength = null, action = null){
 	if(!(mysqlGameTimer[0].timer_start == null || isNaN(endOfTimer) || timeLeftOnTimer <= 0)){
 		//endOfTimer should be a valid time stamp.
 		//timer is still current -> (timerstart + timerlength) - current time = time left on timer
-		//emit start timer with time left on timer ( - 5  to help with sync. )		
-		socket.emit('start-timer', (timeLeftOnTimer - 5));
+		//emit start timer with time left on timer
+		socket.emit('start-timer', timeLeftOnTimer);
 
 	} else {
 		//Timer hasn't been set or is a dodgy value.
 
-		//If this user already has a game timer, delete it and replace it.
-		if(gameTimersGameIDPivot.indexOf(socket.gameID + "-" + socket.userID) !== -1){
-			const gameTimerRow = gameTimersGameIDPivot.indexOf(socket.gameID + "-" + socket.userID);
-			//Important to delete both to keep timeouts and user ID's indexes aligned.
-			gameTimersGameIDPivot.splice(gameTimerRow, 1);
-			gameTimers.splice(gameTimerRow, 1);
-		}
+		//If this user already has a game timer, delete it.
+		clearTimeout(io.in(socket.gameID).gameTimer);
+		io.in(socket.gameID).gameTimer = null
 
 		//Create the timer
 		queryValues = ["games", "timer_start", (Date.now()/1000), "timer_length", timerLength, "id", socket.gameID];
 		mysqlCustom("UPDATE ?? SET ?? = ?, ?? = ? WHERE ?? = ? ", queryValues);
 
-		socket.emit('start-timer', timerLength - 5 );
+		socket.emit('start-timer', timerLength);
 
-		const gameTimerTimeout = setTimeout((io, socket, action) => {
+		//Create a new timer
+		io.in(socket.gameID).gameTimer = setTimeout((io, socket, action) => {
+			console.log("GAME TIMER GONE OFF");
 			io.in(socket.gameID).emit('times-up');
 
 			if(action !== null){
-				action();
+				action(io, socket);
 			}
-			//Delete this timeout from array
-			//If this user already has a game timer, delete it and replace it.
-			if(gameTimersGameIDPivot.indexOf(socket.gameID + "-" + socket.userID) !== -1){
-				const gameTimerRow = gameTimersGameIDPivot.indexOf(socket.gameID + "-" + socket.userID);
-				//Important to delete both to keep timeouts and user ID's indexes aligned.
-				gameTimersGameIDPivot.splice(gameTimerRow, 1);
-				gameTimers.splice(gameTimerRow, 1);
-			}
-		}, (timerLength * 1000), io, socket, action);
-	
-		gameTimers.push(gameTimerTimeout);
-		gameTimersGameIDPivot.push(socket.gameID + "-" + socket.userID);
+			io.in(socket.gameID).gameTimer = null
+			//=5 secs to help everyone sync properly.
+		}, ((timerLength + 5) * 1000), io, socket, action);
 
 	}
-
-	
 
 }
 
 function resetTimer(io, socket){
 		io.in(socket.gameID).emit('times-up');
 
-
-		//If this user already has a game timer, delete it and replace it.
-		if(gameTimersGameIDPivot.indexOf(socket.gameID + "-" + socket.userID) !== -1){
-			const gameTimerRow = gameTimersGameIDPivot.indexOf(socket.gameID + "-" + socket.userID);
-			//Important to delete both to keep timeouts and user ID's indexes aligned.
-			gameTimersGameIDPivot.splice(gameTimerRow, 1);
-			gameTimers.splice(gameTimerRow, 1);
-		}
+		clearTimeout(io.in(socket.gameID).gameTimer);
+		io.in(socket.gameID).gameTimer = null
 
 		//clear the timer
 		queryValues = ["games", "timer_start", null, "timer_length", null, "id", socket.gameID];
 		mysqlCustom("UPDATE ?? SET ?? = ?, ?? = ? WHERE ?? = ? ", queryValues);
 
+}
+
+async function newMaster(io, socket, newMaster = null, newHost = false){
+	const originalNewMaster = newMaster;
+
+	console.log("In New Master!!!!")
+
+	//Changes master to a new current player
+	//If newMaster = winner then the winner of the last round will become master
+	//If newMaster is not null, newMaster's value will become the new Master
+	//Otherwise a random new master is chosen
+
+
+	let queryValues;
+	let playersLeft;
+
+	//Find old Master
+	queryValues = ["id", "players", "ismaster", 1, "game_id", socket.gameID];
+	let oldMasterResult = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ?", queryValues);
+	const oldMaster = oldMasterResult[0].id;
+
+	//Find old Host
+	queryValues = ["id", "players", "ishost", 1, "game_id", socket.gameID];
+	let oldHostResult = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ?", queryValues);
+	const oldHost = oldHostResult[0].id;
+
+	if(newHost === true && oldMaster === oldHost){
+		//Find an appropriate new Host (someone who has most recently connected to this game)
+		queryValues = ["id", "fullname", "players", "game_id", socket.gameID, "connected", 1, "ishost", 0, "created_at"];
+		playersLeft = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? ORDER BY ?? DESC", queryValues);
+		
+		console.log("Players Left obj: " + JSON.stringify(playersLeft));
+	
+		if(playersLeft.length!==0){
+			let newHost = playersLeft[0].id;
+			console.log("newHost=" + newHost);
+
+			await mysqlUpdate("players", "ishost", 1, "id", newHost);
+			await mysqlUpdate("players", "ishost", 0, "id", oldHost);
+			console.log(oldHost + " lost Host privilege to " + newHost);
+
+			const newHostName = await mysqlSelect("fullname", "players", "id", newHost);
+			const newHostData = [newHost, newHostName[0].fullname];
+			
+			io.in(socket.gameID).emit('newHost', newHostData);
+		} 
+	}
+
+
+	if(newMaster==="winner"){
+		//Select latest round
+		queryValues = ["id", "rounds", "game_id", socket.gameID, "id"];
+		const latestRound = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? ORDER BY ?? DESC", queryValues);
+			
+		//find winner 
+		queryValues = ["player_id", "round_answer", "round_id", latestRound[0].id, "iswinner", 1];
+		let newMasterResult = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ?", queryValues);
+		newMaster = newMasterResult[0].player_id;
+	}
+
+	if(newMaster === null){
+		//Find an appropriate new Master (someone who has most recently connected to this game)
+		queryValues = ["id", "fullname", "players", "game_id", socket.gameID, "connected", 1, "ismaster", 0, "created_at"];
+		playersLeft = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? ORDER BY ?? DESC", queryValues);
+		newMaster = playersLeft[0].id;
+	}
+
+		//Find the old master's state.
+		//Give the old master no-state.
+		const oldMasterState = await mysqlSelect("state", "players", "id", oldMaster);
+		//State should be overwritten in when next game state is loaded.
+		updatePlayerStates(socket, "no-state");
+
+		//Change masters
+		await mysqlUpdate("players", "ismaster", 1, "id", newMaster);
+		await mysqlUpdate("players", "ismaster", 0, "id", oldMaster);
+		console.log(oldMaster + " lost Master privilege to " + newMaster);
+
+		//Give the new master that state
+		updatePlayerStates(socket, oldMasterState[0].state)
+
+		//Find new master name
+		const newMasterName = await mysqlSelect("fullname", "players", "id", newMaster);
+		const newMasterData = [newMaster, newMasterName[0].fullname];
+		io.in(socket.gameID).emit('newMaster', newMasterData);
+	
+	
+	//Make everyone refresh so everyone knows what's going on.
+	//The timer will be lost but reset.
+
+	if(originalNewMaster !== "winner"){
+	requestRefresh(io, socket, socket.gameID);
+	}
+
+	return newMaster;
+}
+
+async function proceedWithMissingAnswers(io, socket){
+	console.log("proceeding with missing answers")
+	//Select latest round
+	queryValues = ["id", "rounds", "game_id", socket.gameID, "id"];
+	const latestRound = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? ORDER BY ?? DESC", queryValues);
+
+	//get shortlisted round_answer rows for this round.
+	queryValues = ["id", "round_answer", "round_id", latestRound[0].id, "shortlisted", 1];
+	const playerAnswers = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ? ORDER BY player_id, `order` ASC", queryValues);
+
+	if(playerAnswers.length == 0){
+		//Reset timer if nobody answered
+		requestStateUpdate(io, socket);
+	} else {
+		//Continue with at least one answer if there is one.
+		updatePlayerStates(socket, "master-needs-answers", "player-waiting-for-results");
+		requestStateUpdate(io, socket);
+	}
+}
+
+async function scoreWinner(socket, winnerID){
+	oldScore = await mysqlSelect("score", "players", "id", winnerID)
+	await mysqlUpdate("players", "score", oldScore[0].score + 100, "id", winnerID);
+	emitPlayersInLobby(io, socket.gameID);
+}
+
+async function startNewRound(io, socket){
+	//executed by master
+
+	//Set new master to winner
+	const newMasterID = await newMaster(io, socket, "winner");
+
+	//start new round
+	startGame(io, socket, newMasterID);
+
+
+}
+
+async function showLoader(io, socket){
+	io.in(socket.gameID).emit('show-loader');
 }
