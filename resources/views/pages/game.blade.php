@@ -77,6 +77,43 @@ play hateful
 			alert(message);
 		});
 
+		let isOverflowPlayer = false;
+		socket.on('overflow-player', function(){
+			isOverflowPlayer = true;
+			$("#game-state-display").css("opacity", "1");
+			$("#game-state-display").css("filter", "blur(0px)");
+
+			$("#game-state-display").html(`
+			<div class="row"><div class="col-12"><div class="spinner-border m-4" style="float: left;" role="status">
+						<span class="sr-only">Loading...</span>
+					</div>
+					<h1 class="mt-3" style="display:inline-block; position: absolute;">There are too many players</h1></div></div>
+
+					
+					<div class="row"><div class="col-12"><h3>You have been placed in queue. Waiting for other players to leave.</h3></div></div>
+					
+			`);
+		});
+
+		socket.on('space-available', function(message){
+			if(isOverflowPlayer){
+				//reconnect
+				location.reload();
+			}
+		});
+
+
+		socket.on('find-overflow-user', function(userIDtoFind){
+			if("{{session('userID')}}" == userIDtoFind){
+					socket.emit('i-am-overflow');
+				}
+			});
+
+		socket.on('disableGameStart', function(){
+			window.location.href = '/lobby';
+		});
+		
+
 		//Receive players in room
 		socket.on('playersInLobby', function (players) {
 			//Receiving array of names.
@@ -86,7 +123,9 @@ play hateful
 		//Game State logic
 
 		//query state on page load.
-		socket.emit('what-is-my-state');
+		// socket.emit('what-is-my-state');
+		// ^ I think this was sometimes getting called before they properly joined the room and causing errors.
+		// This now gets called by the join procedure and should avoid random errors.
 
 		//Receive players in room
 		socket.on('load-new-state', function (displayData) {
@@ -168,7 +207,10 @@ play hateful
 
 		socket.on('you-won', () => {			
 			confetti.start(20000, 45, 150)
-			$("#state-instruction").html("<h1 class='m-2'>You won this round! <span class='badge h5 text-weight-bold badge-success'>+100 Points</span></h1>")
+			$("#state-instruction").html(`
+			<h1 class='m-2'>You won this round! <span class='badge h5 text-weight-bold badge-success'>+100 Points</span></h1><br>
+			<h5>You're the next Round Master</h5>
+			`)
 		});
 
 		socket.on('you-lost', () => {			
@@ -191,7 +233,7 @@ play hateful
 				$("#topbar-timer").html("<span class='badge badge-danger'>Time's Up!</span>");
 				$("#sidebar-timer").html("00:00 <span class='badge badge-danger'>Time's Up!</span>");
 			
-				showFunnyLoader("#game-state-display");
+				// showFunnyLoader("#game-state-display");
 				
 			}, (socket.timerTimeLeft * 1000), socket);
 		});
@@ -265,8 +307,8 @@ play hateful
 			if (shortlistedAnswers.length === 0){
 				$("#card-backs").css("display", "none")
 				$("#confirm-answer").css("display", "block")
-				$("#confirm-button").css("opacity", "0");
-				$("#confirm-button").css("transition", "0.3s");
+				$(".confirm-button").css("opacity", "0");
+				$(".confirm-button").css("transition", "0.3s");
 			}
 
 			let answerElementID;
@@ -295,7 +337,7 @@ play hateful
 				$(answerElementID).children().css("opacity", "0%");
 
 				setTimeout(() => {
-					$("#confirm-button").css("opacity", "100%");
+					$(".confirm-button").css("opacity", "100%");
 	
 					$(answerElementID).appendTo("#confirm-answer-cards");
 
@@ -310,7 +352,10 @@ play hateful
 					$(answerElementID).children().css("opacity", "100%");
 					$(answerElementID).children().css("transform", "translateY(200px)");
 					if (shortlistedAnswers.length == $("#question-blanks").html()){
-							$("#confirm-button").css("display", "block");
+							$(".confirm-button").css("display", "block");
+							showMobileConfirmButton();
+
+							showConfirmButtonLegend();
 						}
 					setTimeout(() => {
 						$(answerElementID).children().css("transform", "translateY(0px)");
@@ -318,16 +363,20 @@ play hateful
 						if (shortlistedAnswers.length == $("#question-blanks").html()){
 							disableAnswers(true);
 							
-							$("#confirm-button").css("display", "block");
-							$("#confirm-button").removeClass("btn-disabled");
-							$("#confirm-button").addClass("btn-success");
-							$("#confirm-button").css("opacity", "100%");
+							$(".confirm-button").css("display", "block");
+							$(".confirm-button").removeClass("btn-disabled");
+							$(".confirm-button").addClass("btn-info");
+							$(".confirm-button").css("opacity", "100%");
 
-							if(isShortlisted === "shortlisted"){
-								$("#confirm-button").attr("onclick","confirmWinner()");
-							} else {
-								$("#confirm-button").attr("onclick","confirmAnswers()");
-							}
+							// if(isShortlisted === "shortlisted"){
+							// 	$(".confirm-button").attr("onclick","confirmWinner()");
+							// 	$("#mobile-confirm-button").attr("onclick","confirmWinner()");
+
+							// } else {
+								$(".confirm-button").attr("onclick","confirmAnswers()");
+								$("#mobile-confirm-button").attr("onclick","confirmAnswers()");
+
+							// }
 						}
 					}, 10);
 
@@ -366,9 +415,9 @@ play hateful
 	
 				$(answerElementID).children().css("transform", "translateY(250px)");
 				$(answerElementID).children().css("opacity", "0%");
-				$("#confirm-button").css("transition", "0.2s");
+				$(".confirm-button").css("transition", "0.2s");
 
-				$("#confirm-button").css("opacity", "100%");
+				$(".confirm-button").css("opacity", "100%");
 
 				setTimeout(() => {	
 
@@ -401,7 +450,9 @@ play hateful
 					$(answerElementID).children().css("opacity", "100%");
 					$(answerElementID).children().css("transform", "translateY(-300px)");
 					if (shortlistedAnswers.length <= $("#question-blanks").html()){
-							$("#confirm-button").css("display", "none");
+							$(".confirm-button").css("display", "none");
+							showMobileConfirmButton(false);
+
 						}
 					if (shortlistedAnswers.length === 0){
 						$("#confirm-answer").css("display", "none");
@@ -411,11 +462,11 @@ play hateful
 						$(answerElementID).children().css("transform", "");
 						if (shortlistedAnswers.length <= $("#question-blanks").html()){
 							disableAnswers(false);
-							$("#confirm-button").addClass("btn-disabled");
-							$("#confirm-button").removeClass("btn-success");
-							$("#confirm-button").removeAttr("onclick");
-							$("#confirm-button").css("opacity", "0%");
-							$("#confirm-button").css("display", "none");
+							$(".confirm-button").addClass("btn-disabled");
+							$(".confirm-button").removeClass("btn-info");
+							$(".confirm-button").removeAttr("onclick");
+							$(".confirm-button").css("opacity", "0%");
+							$(".confirm-button").css("display", "none");
 							if (shortlistedAnswers.length === 0){
 							$("#card-backs").css("display", "flex");
 							}
@@ -434,8 +485,8 @@ play hateful
 			} else {
 				$("#card-backs").css("display", "none")
 				$("#confirm-answer").css("display", "block")
-				$("#confirm-button").css("opacity", "0");
-				$("#confirm-button").css("transition", "0.3s");
+				$(".confirm-button").css("opacity", "0");
+				$(".confirm-button").css("transition", "0.3s");
 			}
 
 			let answerElementID = "#answer-" + playerID;
@@ -458,7 +509,7 @@ play hateful
 				$(answerElementID).children().css("opacity", "0%");
 
 				setTimeout(() => {
-					$("#confirm-button").css("opacity", "100%");
+					$(".confirm-button").css("opacity", "100%");
 	
 					$(answerElementID).appendTo("#confirm-answer-cards");
 
@@ -469,20 +520,25 @@ play hateful
 					$(answerElementID).children().css("opacity", "100%");
 					$(answerElementID).children().css("transform", "translateY(200px)");
 					if (shortlistedWinner !== null){
-							$("#confirm-button").css("display", "block");
+							$(".confirm-button").css("display", "block");
+							showConfirmButtonLegend();
+							showMobileConfirmButton();
 					}
 					setTimeout(() => {
 						$(answerElementID).children().css("transform", "translateY(0px)");
 						$(answerElementID).children().css("transform", "");
 						if (shortlistedWinner !== null){
-							disableAnswers(true);
+							disableWinners(true);
 							
-							$("#confirm-button").css("display", "block");
-							$("#confirm-button").removeClass("btn-disabled");
-							$("#confirm-button").addClass("btn-success");
-							$("#confirm-button").css("opacity", "100%");
+							$(".confirm-button").css("display", "block");
+							$(".confirm-button").removeClass("btn-disabled");
+							$(".confirm-button").addClass("btn-info");
+							$(".confirm-button").css("opacity", "100%");
 
-							$("#confirm-button").attr("onclick","confirmWinner()");
+							$(".confirm-button").attr("onclick","confirmWinner()");
+							$("#mobile-confirm-button").attr("onclick","confirmWinner()");
+						
+
 							
 						}
 					}, 10);
@@ -511,9 +567,9 @@ play hateful
 	
 				$(answerElementID).children().css("transform", "translateY(250px)");
 				$(answerElementID).children().css("opacity", "0%");
-				$("#confirm-button").css("transition", "0.2s");
+				$(".confirm-button").css("transition", "0.2s");
 
-				$("#confirm-button").css("opacity", "100%");
+				$(".confirm-button").css("opacity", "100%");
 
 				setTimeout(() => {	
 
@@ -528,17 +584,19 @@ play hateful
 					$(answerElementID).children().css("transform", "translateY(-300px)");
 					if (shortlistedWinner === null){
 						$("#confirm-answer").css("display", "none");
+						showMobileConfirmButton(false);
+
 					}
 					setTimeout(() => {
 						$(answerElementID).children().css("transform", "translateY(0px)");
 						$(answerElementID).children().css("transform", "");
 						if (shortlistedWinner === null){
-							disableAnswers(false);
-							$("#confirm-button").addClass("btn-disabled");
-							$("#confirm-button").removeClass("btn-success");
-							$("#confirm-button").removeAttr("onclick");
-							$("#confirm-button").css("opacity", "0%");
-							$("#confirm-button").css("display", "none");
+							disableWinners(false);
+							$(".confirm-button").addClass("btn-disabled");
+							$(".confirm-button").removeClass("btn-info");
+							$(".confirm-button").removeAttr("onclick");
+							$(".confirm-button").css("opacity", "0%");
+							$(".confirm-button").css("display", "none");
 							$("#card-backs").css("display", "flex");
 							}
 					}, 10);
@@ -548,6 +606,8 @@ play hateful
 		}
 
 		function confirmAnswers() {
+			$("#mobile-confirm-button").height("0px");
+
 			if (shortlistedAnswers.length > 2 || shortlistedAnswers.length > $("#question-blanks").html()){
 				alert("Too Many Answers")
 				return;
@@ -566,6 +626,7 @@ play hateful
 		}
 
 		function confirmWinner() {
+			$("#mobile-confirm-button").height("0px");
 			if (shortlistedWinner === null){
 				alert("No answer")
 				return;
@@ -607,6 +668,36 @@ play hateful
 			}
 		}
 
+
+		function disableWinners(disable){
+			//disable all cards
+			//re-enable the one's we've already selected
+			if(disable===true){
+				$(".answer-not-selected").removeAttr("href");
+				$(".answer-not-selected").removeAttr("onclick");
+				$(".answer-not-selected").children().css("opacity", "25%");
+				$(".answer-not-selected").children().css("background-color", "lightgray");
+				$(".answer-not-selected").children().removeClass("hover-effect-grow");
+			} else {
+				$('.answer-not-selected').each(function() {
+					let answerID = $(this).attr('id');
+					answerID = answerID.replace('answer-','');
+					if(answerID.includes("roaster")){
+						 answerID = answerID.replace('roaster-','');
+						 $(this).attr("onclick", "pickWinner(" + answerID + "," + "'player-name-roaster')");
+					} else{
+						$(this).attr("onclick", "pickWinner(" + answerID + ")");
+					}
+				});
+				$.each($('.answer-not-selected'), function () { 
+					
+				});
+				$(".answer-not-selected").attr("href", "#");
+				$(".answer-not-selected").children().css("opacity", "100%");
+				$(".answer-not-selected").children().css("background-color", "white");
+				$(".answer-not-selected").children().addClass("hover-effect-grow");
+			}
+		}
 
 
 		function updateLeaderboard(players){
@@ -657,8 +748,38 @@ play hateful
 
 		}
 
+		function showMobileConfirmButton (show = true) {
+			if(show){
+				$("#mobile-confirm-button").height("auto");
+			} else {
+				$("#mobile-confirm-button").height("0px");
+			}
 
 
+		}
+		function showConfirmButtonLegend(fullWidth = 180){
+			//wait a lil bit
+			setTimeout(() => {
+				//make button visible
+				$(".confirm-button-legend").css("opacity", "100%");
+				$(".confirm-button-legend").css("display", "block");
+				setTimeout(() => {
+					//slide out to calculated width
+					$(".confirm-button-legend").css("width", fullWidth);
+				}, 100);
+			}, 200);
+		
+			//wait a second
+			setTimeout(() => {
+				//slide button back in
+				$(".confirm-button-legend").css("width", "50px");
+			}, 2400);
+			//hide button
+			setTimeout(() => {
+				$(".confirm-button-legend").css("opacity", "0%");
+				$(".confirm-button-legend").css("display", "none");
+			}, 3000);
+		}
 
 
 		function showFunnyLoader(element){
