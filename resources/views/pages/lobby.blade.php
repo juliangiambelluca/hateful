@@ -73,6 +73,7 @@
           </div>      
           <!-- End Game table -->
 
+		<h4 class="m-4">Players will appear here as they connect:</h4>
 
 		<div id="name-cards-container" class="name-cards-container">
             <div class="row m-3">
@@ -136,52 +137,87 @@
 			}, 500);
 		  });
 
+
+		  let isOverflowPlayer = false;
+		  socket.on('overflow-player', function(){
+			isOverflowPlayer = true;
+			$("#start-game").html(`
+				<div class="alert alert-primary alert-dismissible fade show" role="alert">
+					<strong>There are too many players</strong>. You have been disconnected and placed in a queue.
+					<button type="button" class="close" data-dismiss="alert" aria-label="Close">
+						<span aria-hidden="true">&times;</span>
+					</button>
+				</div>
+				`);
+			});
+
+			socket.on('space-available', function(message){
+				if(isOverflowPlayer){
+					//reconnect
+					location.reload();
+				}
+			});
+
+			socket.on('find-overflow-user', function(userIDtoFind){
+				if("{{session('userID')}}" == userIDtoFind){
+					socket.emit('i-am-overflow');
+				}
+			});
+
+
+
+
+
 		  //Receive players in room
           socket.on('playersInLobby', function (players) {
            //Receiving array of names.
             displayNameCards(players);
           });
 
-		  socket.on('enableGameStart', function () {
-			@if(session('isHost') === true)
-				$("#start-game").html(`
-				<button onclick="startGame()" id="start-game" class="btn btn-lg mt-2 py-3 btn-success" 
-				style="min-width: 50%; max-width: 83%;">
-				Start Game.</button>   
-				`);
-			@else
-				$("#start-game").html(`
-				<div class="alert alert-primary alert-dismissible fade show" role="alert">
-					<strong>Waiting for host to start game</strong>. Tell them to hurry up.
-					<button type="button" class="close" data-dismiss="alert" aria-label="Close">
-						<span aria-hidden="true">&times;</span>
-					</button>
-				</div>
-				`);
-			@endif
-
+		  socket.on('enableGameStart', function (hostID) {
+			if(isOverflowPlayer === false){
+				if("{{session('userID')}}" == hostID){
+					$("#start-game").html(`
+					<button onclick="startGame()" id="start-game" class="btn btn-lg mt-2 py-3 btn-success" 
+					style="min-width: 50%; max-width: 83%;">
+					Start Game.</button>   
+					`);
+				} else {
+					$("#start-game").html(`
+					<div class="alert alert-primary alert-dismissible fade show" role="alert">
+						<strong>Waiting for host to start game</strong>. Tell them to hurry up.
+						<button type="button" class="close" data-dismiss="alert" aria-label="Close">
+							<span aria-hidden="true">&times;</span>
+						</button>
+					</div>
+					`);
+				}
+			}
 		  });
 
-		  socket.on('disableGameStart', function () {
-			@if(session('isHost') === true)
-				$("#start-game").html(`
-				<div class="alert alert-dark alert-dismissible fade show" role="alert">
-					<strong>Waiting for at least 3 players</strong>. You won't be able to start the game until then.
-					<button type="button" class="close" data-dismiss="alert" aria-label="Close">
-						<span aria-hidden="true">&times;</span>
-					</button>
-				</div>
-				`);
-			@else
-			$("#start-game").html(`
-				<div class="alert alert-dark alert-dismissible fade show" role="alert">
-					<strong>Waiting for at least 3 players</strong>. Hope you have friends.
-					<button type="button" class="close" data-dismiss="alert" aria-label="Close">
-						<span aria-hidden="true">&times;</span>
-					</button>
-				</div>
-				`);
-			@endif
+		  socket.on('disableGameStart', function (hostID) {
+			if(isOverflowPlayer === false){
+				if("{{session('userID')}}" == hostID){
+					$("#start-game").html(`
+					<div class="alert alert-dark alert-dismissible fade show" role="alert">
+						<strong>Waiting for at least 3 players</strong>. You won't be able to start the game until then.
+						<button type="button" class="close" data-dismiss="alert" aria-label="Close">
+							<span aria-hidden="true">&times;</span>
+						</button>
+					</div>
+					`);
+				} else {
+					$("#start-game").html(`
+					<div class="alert alert-dark alert-dismissible fade show" role="alert">
+						<strong>Waiting for at least 3 players</strong>. Hope you have friends.
+						<button type="button" class="close" data-dismiss="alert" aria-label="Close">
+							<span aria-hidden="true">&times;</span>
+						</button>
+					</div>
+					`);
+				}
+
+			}
 		  });
 
 		  
