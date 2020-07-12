@@ -1,6 +1,9 @@
 <span id="state-instruction"></span>
 
 <div id="game-table">
+
+
+
     <div class="row">
 	    <div class="col-12 pr-0">
       <div style="float:left" class="pl-1 pt-1" id="round-question-card">
@@ -14,13 +17,17 @@
 					<!-- Some padding to encourage side scrolling on mobile -->
 					<!-- <div class="m-3 d-md-none"></div> -->
 
-          <span id="confirm-answer-cards" style="display:contents">
+
+
+          <span id="confirm-answer-cards" style="display:contents;">
           
           </span>
 
-					<div class="confirm-button-holder"  style="display: contents; height: 100px; width: 100px; overflow: hidden;">
-         			    <button type="button" id="confirm-button" style="position: sticky; display: none; opacity: 0%;" height="70px" width="70px" class="btn vertical-center  ml-2 btn-lg btn-circle btn-disabled "><i class="fas fa-check"></i></button>
-       			    </div>
+					<div class="confirm-button-holder d-none d-md-block"  style="height: 100px; width: 100px; overflow: hidden;">
+         			    <button type="button"  style=" display: none; opacity: 0%;" height="70px" width="70px" class="confirm-button btn vertical-center  ml-2 btn-lg btn-circle btn-disabled "><i class="fas fa-check"></i></button>
+         			    <button type="button"  style=" display: none; opacity: 0%;" height="70px" width="70px" class="confirm-button-legend btn vertical-center ml-2 btn-lg btn-circle btn-info btn-slide-out-legend"><small><b>Press to confirm</b></small></button>
+                
+                </div>
 
          		</div>
 			</div>
@@ -33,11 +40,16 @@
 </div> 
 <!-- End  TOP row  -->
 
+<div class="row d-flex d-md-none" id="mobile-confirm-button" style="height: 0px; overflow: hidden"> <div class="col-12 pr-0">
+  <button type="button" style="position: relative;" class="mx-auto my-2 confirm-button btn vertical-center btn-lg btn-info "><i class="fas fa-check"></i> Confirm Selection</button>
+</div>   </div>
+
 
   <!-- End Game table -->
 <div class="row mt-4 mb-5">
 	<div class="col-12">
 		<div class="p-1" id="my-answer-cards">
+
       <div class="spinner-border m-4" style="float: left;" role="status">
         <span class="sr-only">Loading...</span>
     </div>
