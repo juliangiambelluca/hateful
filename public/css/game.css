@@ -483,3 +483,40 @@ width: 100%;
     margin-left: -5px;
   }
 }
+
+
+.btn-slide-out-legend {
+overflow: hidden;
+white-space: nowrap;
+z-index: -10;
+transition: 0.35s;
+
+transition-timing-function: ease-in-out;
+
+}
+.btn-slide-out-legend small {
+
+  z-index: 0; margin-left: 40px;
+  
+  }
+.btn-slide-out-legend:after {
+  content: '\A';
+  position: absolute;
+  width: 100%; 
+  height:100%;
+  top:0; 
+  left:0;
+  z-index: -5;
+  background:rgba(0,0,0,0.5);
+  opacity: 0.5;
+  transition: all 0.5s;
+  -webkit-transition: all 0.5s;
+  -moz-transition: all 0.5s;
+  
+  }
+
+  @media screen and (max-width: 480px) {
+    .confirm-answer-cards {
+      padding-left: 60px;
+    }
+  }
