@@ -1,12 +1,36 @@
+"use strict";
+
 //Configuration
 const hatefulConfig = {
-	answerCards: 10,       //Number of answer cards to offer
-	writeYourOwn: false    //Enable write your own card feature (counts as one more answer card)
+	/* Answer Cards */
+	// Make sure that (goodAnswers + badAnswers) is less than (answerCards - 1)
+	// One card from answerCards will always be a player name card.
+	answerCards: 10,        //Number of cards to reach if no scored answers found for the current question. 
+	goodAnswers: 6,			//Number of cards to offer above average score
+	badAnswers: 3,			//Number of cards to offer below average score
+	writeYourOwn: false,    //Enable write your own card feature - Make this come out of the answerCards budget
+
+	/* Players */
+	minPlayers: 2,			//Minimum players to allow game play
+	maxPlayers: 2,			//Maximum players to allow game play
+
+	/* Connection */
+	disconnectTimerLength: 10000,	//Recommended: 35 seconds.
+	//How long to wait before flagging a user as disconnected in the database and potentially automatically choosing a new host.
+	staggerDelay: 400, 				//Recommended: 400ms.
+	//How much delay to stagger player's database access by. This is to avoid conflicts when players access the database simultaneously.
+	//For example, at 400ms, the tenth player will have to wait 4 seconds. Important queries this applies to take around 450ms.
+
+	/* Gameplay */
+	gameTimerLength: 20		//Length of timer for choosing questions and answers. In seconds. recommended: 60 Seconds
 };
 
 
 const fs = require('fs');
 const path = require("path");
+
+const dbConfig = require(path.resolve(__dirname, "db_config.json"))
+
 
 // Setup MySQL
 const mysql = require('mysql');
@@ -14,21 +38,14 @@ const { Console } = require('console');
 const { off } = require('process');
 const { setWith, shuffle } = require('lodash');
 const { start } = require('repl');
-const pool = mysql.createPool({
-    connectionLimit : 100, //important
-    host     : '127.0.0.1',
-    database : 'hateful',
-    user     : 'root',
-    password : 'rrfKa-dd6-sCX7F',
-    debug    :  false
-});
+const pool = mysql.createPool(dbConfig);
 	
 // Setup Socket.IO
 const app = require('express')();
 const http = require('http').createServer(app);
 const io = require('socket.io')(http);
 http.listen(3000, () => {
-	console.log('listening on *:3000');
+	console.log('\x1b[97;45m%s\x1b[0m','Listening on *:3000');
 });
 
 
@@ -39,10 +56,15 @@ let timeoutUserIDPivot = [];
 
 
 let notify = io.on('connection', (socket) => {
-	console.log('A user connected.');
+	console.log('\x1b[97;44m%s\x1b[0m','A user connected');
 
+	//Stagger joins to give time for overflow users to get "kicked out"
 	socket.on('join', function (dirtyUserID) {
-		joinUser(io, socket, dirtyUserID);  
+
+
+			joinUser(io, socket, dirtyUserID);  
+
+
 	});
 	
 	socket.on('start-game', function(){
@@ -51,25 +73,38 @@ let notify = io.on('connection', (socket) => {
 
 	socket.on('what-is-my-state', async function(){
 		if(socket.userID != null){
-			userStateResult = await mysqlSelect("state", "players", "id", socket.userID);
-			userState = userStateResult[0].state;
-			console.log(socket.userID + "'s state is: " + userState);
+			let userStateResult = await mysqlSelect("state", "players", "id", socket.userID);
+			let userState = userStateResult[0].state;
+			console.log('\x1b[97;44m%s\x1b[0m', socket.userID + "'s state is: " + userState);
+			//white on blue
+
 
 			switch (userState) {
+				case "no-state":
+					newPlayerWaitForNextRound(socket);
+					break;
+				case "overflow-player":
+					socket.emit("overflow-player");
+					break;	
+				case "disconnected-or-timeout":
+					disconnectedOrTimeout(socket);
+					break;	
+					
 				//STEP 1
 				case "player-waiting-for-question":
 					showPlayerQuestionWaitingScreen(socket);
-					startTimer(io, socket, 60, function() {newMaster(io, socket, null, true)});
+					startTimer(io, socket, hatefulConfig.gameTimerLength, function() {newMaster(io, socket, null, true)});
 					break;
 				case "master-needs-questions":
 					//Reset staggering delay.
 					io.in(socket.gameID).staggerDelay = 0;
-					console.log("STAGGERING DELAY: 	" + io.in(socket.gameID).staggerDelay)
+					//Black on yellow
+
 					getMasterQuestions(socket);
 
 					//waiting on master to pick question
 					//if master times out, change master - and if they're host, change host too.
-					startTimer(io, socket, 60, function() {newMaster(io, socket, null, true)});
+					startTimer(io, socket, hatefulConfig.gameTimerLength, function() {newMaster(io, socket, null, true)});
 
 					// startTimer(50, change Master);
 					break;
@@ -78,31 +113,26 @@ let notify = io.on('connection', (socket) => {
 				case "master-waiting-for-answers":
 					//Master waiting for players to answer
 					showMasterAnswerWaitingScreen(socket);
-					startTimer(io, socket, 60, function() {proceedWithMissingAnswers(io, socket)});
+					startTimer(io, socket, hatefulConfig.gameTimerLength, function() {proceedWithMissingAnswers(io, socket)});
 					break;
 				case "player-needs-answers":
 
 					showMainGameTemplate(socket);
 					getRoundQuestion(socket);
 
-					console.log(socket.userID + "Will Stagger By	" + io.in(socket.gameID).staggerDelay)
+					console.log('\x1b[43;30m%s\x1b[0m', "Get Answer Staggering Delay: " +  io.in(socket.gameID).staggerDelay);
 
 					//Stagger answer getting to avoid duplicates being offered.
-					setTimeout(() => {
+					setTimeout((socket) => {
 						getPlayerAnswers(socket);
-					}, io.in(socket.gameID).staggerDelay);
+					}, io.in(socket.gameID).staggerDelay, socket);
 					//add 500ms to stagger delay for next person
-					io.in(socket.gameID).staggerDelay += 500;
+					io.in(socket.gameID).staggerDelay += hatefulConfig.staggerDelay;
 					//getPlayerAnswers takes 500ms to execute. making each player wait multiple seconds is not ideal
 					//but will have to do until further refactoring of get player answers.
 
 					//If they don't answer in time they won't get a point
-					startTimer(io, socket, 60, function() {proceedWithMissingAnswers(io, socket)});
-					break;
-
-				
-				case "no-state":
-					newPlayerWaitForNextRound(socket);
+					startTimer(io, socket, hatefulConfig.gameTimerLength, function() {proceedWithMissingAnswers(io, socket)});
 					break;
 
 				//STEP 2.5
@@ -111,7 +141,7 @@ let notify = io.on('connection', (socket) => {
 					getRoundQuestion(socket, "self");
 					showPlayerAnswerWaiting(socket);
 					//If timer is already set (which it should be), they will just see a continuation of their previous countdown.
-					startTimer(io, socket, 60);
+					startTimer(io, socket, hatefulConfig.gameTimerLength, function() {proceedWithMissingAnswers(io, socket)});
 					break;
 
 				//STEP 3
@@ -123,12 +153,12 @@ let notify = io.on('connection', (socket) => {
 
 					//waiting on master to pick question
 					//if master times out, change master - and if they're host, change host too.
-					startTimer(io, socket, 60,  function() {newMaster(io, socket, null, true)});
+					startTimer(io, socket, hatefulConfig.gameTimerLength,  function() {newMaster(io, socket, null, true)});
 					break;
 				case "player-waiting-for-results":
 					showResultsWaitingScreen(socket);
 					//If timer is already set (which it should be), they will just see a continuation of their previous countdown.
-					startTimer(io, socket, 60,  function() {newMaster(io, socket, null, true)});
+					startTimer(io, socket, hatefulConfig.gameTimerLength,  function() {newMaster(io, socket, null, true)});
 					break;
 
 				//STEP 4
@@ -137,7 +167,11 @@ let notify = io.on('connection', (socket) => {
 					showMainGameTemplate(socket, "self");
 					getRoundQuestion(socket, "self");
 					showWinners(socket);
-					startTimer(io, socket, 20, async function(io, socket) {
+
+					//reset the staggering delay.
+					io.in(socket.gameID).staggerDelay = 0;
+
+					startTimer(io, socket, (hatefulConfig.gameTimerLength / 3), async function(io, socket) {
 						await updatePlayerStates(socket, "new-round", "no-state")
 						requestStateUpdate(io, socket);
 					});
@@ -148,7 +182,7 @@ let notify = io.on('connection', (socket) => {
 					getRoundQuestion(socket, "self");
 					showWinners(socket);
 					//Emit dummy timer
-					socket.emit('start-timer', 20);
+					socket.emit('start-timer', (hatefulConfig.gameTimerLength / 3));
 					break;
 				case "new-round":
 					showLoader(io, socket);
@@ -169,14 +203,21 @@ let notify = io.on('connection', (socket) => {
 	});
 
 	socket.on('player-confirmed-answers', async (dirtyAnswerIDS) => {
-		console.log("in player-confirmed-answers");
 		playerConfirmedAnswers(io, socket, dirtyAnswerIDS);
 	});
 
 	socket.on('master-confirmed-winner', async (dirtyWinnerID) => {
 		masterConfirmedWinner(io, socket, dirtyWinnerID);
 	});
-
+	
+	socket.on('i-am-overflow', async () => {
+		mysqlUpdate("players", "connected", 0, "id", socket.userID);
+		//Change this one user's state.
+		updatePlayerStates(socket, null, "overflow-player", true);
+		socket.emit("overflow-player");
+		emitPlayersInLobby(io, socket.gameID);
+	});
+	
 	socket.on('disconnect', () => {
 		disconnectUser(io, socket);
 	}); 
@@ -237,199 +278,275 @@ async function joinUser(io, socket, dirtyUserID){
 		if(userID.length > 10){userID = null};
 
 		userID = parseInt(userID, 10);
-		(async () => {
-			gameID = await mysqlSelect("game_id", "players", "id", userID);
-			//Returns array of objects
-			//First result (row); attribute: game_id
-			gameID = gameID[0].game_id;
-			gameID = parseInt(gameID, 10);
+		
+		let gameID = await mysqlSelect("game_id", "players", "id", userID);
+		//Returns array of objects
+		//First result (row); attribute: game_id
+		gameID = gameID[0].game_id;
+		gameID = parseInt(gameID, 10);
 
-			if(userID === NaN){
-				//Reject bad input
-				socket.join("dodgyID");
-				io.in("dodgyID").emit('dodgyID');
-				console.log("Dodgy User ID denied:" + dirtyUserID)
-			} else {
+		if(userID === NaN){
+			//Reject bad input
+			socket.join("dodgyID");
+			io.in("dodgyID").emit('dodgyID');
+			console.log('\x1b[97;41m%s\x1b[0m', "Dodgy User ID denied:" + dirtyUserID);
 
-				socket.join(gameID);
-				//Every user will have their own room as session scope seems to be room-based.
+		} else {
+
+			socket.gameID = gameID;
+			socket.userID = userID;
+
+			//^Sanitisation of ID
+
+			//Connect code
 
 
-				socket.gameID = gameID;
-				socket.userID = userID;
-				// socket.handshake.session.save();
-
-				console.log("Node Session data says - Game ID:" + socket.gameID + " User ID:" + socket.userID)
-				//if they return after leaving within 10 seconds, stop db from updating them to disconnected.
-				if (timeoutUserIDPivot.includes(userID)) {
-					const timeoutRow = timeoutUserIDPivot.indexOf(userID);
+			//Clear their disconnect timer before they wait for their turn to connect
+			if (socket.userID != null) {
+				if (timeoutUserIDPivot.includes(socket.userID)) {
+					const timeoutRow = timeoutUserIDPivot.indexOf(socket.userID);
 					clearTimeout(timeouts[timeoutRow]);
 					timeoutUserIDPivot.splice(timeoutRow, 1);
 					timeouts.splice(timeoutRow, 1);
-					console.log("Timeout cleared & deleted from array.");
+					console.log('\x1b[97;104m%s\x1b[0m', "Timeout cleared & deleted from array.");
+
 				}
-				
-				//User joined their room. Mark them as connected in DB
-				await mysqlUpdate("players", "connected", 1, "id", userID);
-
-				//Let user know they connected and output this to console.
-				console.log(userID + ' Joined room:' + gameID);
-				io.in(gameID).emit('joinRoomSuccess');
-
-				//Let everyone in room know the updated connected users list.
-				emitPlayersInLobby(io, gameID);
 			}
 
-			(async () => {
-				const queryValues = ["id", "players", "game_id", gameID, "connected", 1];
-				const connectedPlayers = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ?", queryValues);
-				//Returns array of objects
-				if(connectedPlayers.length > 1){
-					io.in(gameID).emit('enableGameStart');
-				} else {
-					io.in(gameID).emit('disableGameStart');
-					
-				}
-			 })();
+			if(io.in(socket.gameID).staggerDelay == null){
+				io.in(socket.gameID).staggerDelay = 10;
+			}
 			
-		 })();
+
+			setTimeout(async(io, socket) => {
+				
+					socket.join(socket.gameID);
+					// console.log("Node Session data says - Game ID:" + socket.gameID + " User ID:" + socket.userID)
+					//if they return after leaving within 10 seconds, stop db from updating them to disconnected.
+				
+					//User joined their room. Mark them as connected in DB
+					await mysqlUpdate("players", "connected", 1, "id", socket.userID);
+
+					//Let user know they connected and output this to console.
+					// console.log(userID + ' Joined room:' + socket.gameID);
+					io.in(gameID).emit('joinRoomSuccess');
+
+					//Let everyone in room know the updated connected users list.
+					emitPlayersInLobby(io, socket.gameID);
+
+					//Player will get flagged as disconnected if there's too many players.
+					checkPlayerCount(io, socket); 
+					requestStateUpdate(io, socket, true);
+
+			}, io.in(socket.gameID).staggerDelay, io, socket);
+			//add stagger delay for next person
+			io.in(socket.gameID).staggerDelay += (hatefulConfig.staggerDelay / 2);
+
+			console.log('\x1b[43;30m%s\x1b[0m', "Join Staggering Delay: " +  io.in(socket.gameID).staggerDelay);
+
+		}
 }
 
-async function disconnectUser(io, socket){
-	if (socket.userID != null) {
-		console.log("There is a session: UserID:" + socket.userID + " GameID:" + socket.gameID);
-		console.log("A user (" + socket.userID + ") is disconnecting");
+async function checkPlayerCount(io, socket){
+	//If current player is host or master do not disconnect them.
+	let isMaster = await mysqlSelect("ismaster", "players", "id", socket.userID);
+	let isHost = await mysqlSelect("ishost", "players", "id", socket.userID);
 
-		//Create set timeout to disconnect after a few seconds
-		const disconnectTimer = setTimeout(async function(io, userID, gameID){
-			
+	console.log('\x1b[31;107m%s\x1b[0m', "checkPlayerCount gameID: " + socket.gameID);
 
-			//Deal with host disconnects
-			console.log("disconnectTimer triggered");
-			isHost = await mysqlSelect("ishost", "players", "id", userID);
-			//Returns array of objects
-			//First row, isHost attribute.
-			isHost = isHost[0].ishost;
+	let queryValues = ["id", "players", "game_id", socket.gameID, "ishost", 1];
+	let theHostID = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ?", queryValues);
 
-			console.log(userID + "'s Host status: '" + isHost + "'");
-
-			let queryValues;
-			let playersLeft;
-
-			if (isHost==1){
-				console.log("isHost==1");
-
-				queryValues = ["id", "fullname", "players", "game_id", gameID, "connected", 1, "ishost", 0, "created_at"];
-				playersLeft = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? ORDER BY ?? DESC", queryValues);
-				
-				console.log("Players Left obj: " + JSON.stringify(playersLeft));
-			
-				if(playersLeft.length!==0){
-					const newHost = [playersLeft[0].id, playersLeft[0].fullname];
-					console.log("newHostArr=" + JSON.stringify(newHost))
-
-					await mysqlUpdate("players", "ishost", 1, "id", newHost[0]);
-					await mysqlUpdate("players", "ishost", 0, "id", userID);
-					console.log(userID + " lost Host privilege to " + newHost[0]);
-					io.in(gameID).emit('newHost', newHost);
-				} else {
-					console.log("Everyone left!")
-
-					//Delete everything related to this game!
+	console.log('\x1b[31;107m%s\x1b[0m', "checkPlayerCount theHostID: " + JSON.stringify(theHostID));
 
 
-				}
-			}
+	if (typeof theHostID[0].id == 'undefined' || theHostID[0].id === null) { 
+		console.log('\x1b[31;107m%s\x1b[0m', "checkPlayerCount could not find the Host ID");
+		alertSocket(socket, "Please refresh, something went wrong. [checkPlayerCount could not find the Host ID]");
+		return; 
+	} else { 
+		theHostID = theHostID[0].id; 
+	}
+ 
+	isMaster = isMaster[0].ismaster;		
+	isHost = isHost[0].ishost;		
 
-
-			//Deal with question master disconnects
-
-			isMaster = await mysqlSelect("ismaster", "players", "id", userID);
-			//Returns array of objects
-			//First row, isHost attribute.
-			isMaster = isMaster[0].ismaster;
-
-			console.log(userID + "'s Host status: '" + isMaster + "'");
-
-			if (isMaster==1){
-				console.log("isMaster==1");
-
-				queryValues = ["id", "fullname", "players", "game_id", gameID, "connected", 1, "ismaster", 0, "created_at"];
-				playersLeft = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? ORDER BY ?? DESC", queryValues);
-				
-				console.log("Players Left obj: " + JSON.stringify(playersLeft));
-			
-				if(playersLeft.length!==0){
-					const newMaster = [playersLeft[0].id, playersLeft[0].fullname];
-					console.log("newMasterArr=" + JSON.stringify(newMaster));
-
-					
-					//Find this master's state.
-					//Give the master no-state.
-					const oldMasterState = await mysqlSelect("state", "players", "id", userID);
-					updatePlayerStates(socket, "no-state");
-
-					//Change masters
-					await mysqlUpdate("players", "ismaster", 1, "id", newMaster[0]);
-					await mysqlUpdate("players", "ismaster", 0, "id", userID);
-					console.log(userID + " lost Master privilege to " + newMaster[0]);
-
-					//Give the new master that state
-					updatePlayerStates(socket, oldMasterState[0].state)
-
-					io.in(gameID).emit('newMaster', newMaster);
-				} else {
-					console.log("Everyone left!")
-
-					//Delete everything related to this game!
-
-
-				}
-			}
-
-
-
-
-
-			//Mark them as disconnected in DB.
-			await mysqlUpdate("players", "connected", 0, "id", userID);
-			
-			//Update front-end player list.
-			emitPlayersInLobby(io, gameID);
-
-			queryValues = ["id", "players", "game_id", gameID, "connected", 1];
-			connectedPlayers = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ?", queryValues);
-			//Returns array of objects
-			if(connectedPlayers.length > 1){
-				io.in(gameID).emit('enableGameStart');
-			} else {
-				io.in(gameID).emit('disableGameStart');
-			}
-
-			//Clear this timer from the timeouts table
-			const timeoutRow = timeoutUserIDPivot.indexOf(userID);
-			//Important to delete both to keep timeouts and user ID's indexes aligned.
-			timeoutUserIDPivot.splice(timeoutRow, 1);
-			timeouts.splice(timeoutRow, 1);
-			console.log("Deleted timeout from array as it's no longer needed.");
-
-			delete socket.userID;
-			delete socket.gameID;
-			// socket.handshake.session.save();
-			console.log("Session deleted");
-	
-		}, 60000, io, socket.userID, socket.gameID);
-		// Important to pass the user data to the timer function!
-
-		timeouts.push(disconnectTimer);
-		timeoutUserIDPivot.push(socket.userID);
-		console.log("Timer pushed.");
-
+	queryValues = ["id", "players", "game_id", socket.gameID, "connected", 1];
+	const connectedPlayers = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ?", queryValues);
+	//Returns array of objects
+	if(connectedPlayers.length >= hatefulConfig.minPlayers){
+		io.in(socket.gameID).emit('enableGameStart', theHostID);
+		
 	} else {
-		console.log("There was no session. Exiting disconnectTimer function.");
-		return;
+		io.in(socket.gameID).emit('disableGameStart', theHostID);
+		//TODO
+		//^If this gets called during gameplay, it will show the lobby.
+		await mysqlUpdate("games", "started", 0, "id", socket.gameID);
+		//TODO
+		//^This tells laravel to stay in the lobby
+		updatePlayerStates(socket, "no-state", "no-state");
+		//^Clear current round progress. When game gets started again everyone's state will be set to new round states anyway.
+		//Scores are not affected. Scoreboard will continue when game starts again.
+	
+	}
+	if(connectedPlayers.length > hatefulConfig.maxPlayers){
+	
+		//If they are host or master, disconnect someone else.
+		if (isMaster == 1 || isHost == 1){
+			//Find player that is not master or host, the latest one to join.
+			queryValues = ["id", "players", "game_id", socket.gameID, "connected", 1, "ishost", 0, "ismaster", 0, "created_at"];
+			let playersLeft = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? AND ?? = ? ORDER BY ?? DESC", queryValues);
+		
+			//disconnect this user to bring connected player count back to normal.
+			io.in(socket.gameID).emit('find-overflow-user', playersLeft[0].id);
+			
+			
+		} else {
+			//If not master or host.
+
+			//disconnect this user to bring connected count back to normal.
+			mysqlUpdate("players", "connected", 0, "id", socket.userID);
+				
+			//Change this one user's state.
+			updatePlayerStates(socket, null, "overflow-player", true);
+			socket.emit("overflow-player");
+			emitPlayersInLobby(io, socket.gameID);
+		}
+
+		
+	} 
+	if(connectedPlayers.length <= hatefulConfig.maxPlayers){
+		//broadcast there is a space available. first player to reconnect gets it.
+		io.in(socket.gameID).emit('space-available');
+		emitPlayersInLobby(io, socket.gameID);
 	}
 }
+
+
+	
+
+async function disconnectUser(io, socket){
+	if (socket.userID == null) {
+		console.log('\x1b[41;97m%s\x1b[0m', "User disconnected but no session. Exiting disconnectTimer function.");
+        return;
+    }
+    
+    console.log("A user (" + socket.userID + ") is disconnecting...");
+
+    //Create set timeout to flag as disconnected and re-choose host after a few seconds
+    const disconnectTimer = setTimeout(async function(io, socket){
+        let queryValues;
+        let playersLeft;
+
+        //Deal with host disconnects
+        console.log("disconnectTimer triggered");
+
+        let isHost = await mysqlSelect("ishost", "players", "id", socket.userID);
+        isHost = isHost[0].ishost;
+
+        console.log(socket.userID + "'s Host status: '" + isHost + "'");
+
+
+        if (isHost==1){
+            //Find appropiate new host
+            queryValues = ["id", "fullname", "players", "game_id", socket.gameID, "connected", 1, "ishost", 0, "ismaster", 0, "created_at"];
+            playersLeft = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? AND ?? = ? ORDER BY ?? DESC", queryValues);
+            
+            // console.log("Players Left obj: " + JSON.stringify(playersLeft));
+        
+            if(playersLeft.length == 0){
+                console.log('\x1b[41;97m%s\x1b[0m', "***Everyone left!***");
+                //TODO - Delete everything related to this game!
+            } else {
+				// console.log("newHostArr=" + JSON.stringify(newHost))
+
+                await mysqlUpdate("players", "ishost", 0, "id", socket.userID);
+				await mysqlUpdate("players", "ishost", 1, "id", playersLeft[0].id);
+                // console.log('\x1b[42;97m%s\x1b[0m', "***Everyone left!***");
+				
+                console.log('\x1b[42;97m%s\x1b[0m',socket.userID + " lost Host privilege to " + playersLeft[0].id);
+
+                const newHost = [playersLeft[0].id, playersLeft[0].fullname];
+                io.in(socket.gameID).emit('newHost', newHost);
+            }
+        } //End if Host
+        
+
+        //Deal with question master disconnects
+        let isMaster = await mysqlSelect("ismaster", "players", "id", socket.userID);
+        isMaster = isMaster[0].ismaster;
+
+        console.log(socket.userID + "'s Host status: '" + isMaster + "'");
+
+        if (isMaster==1){
+            // console.log("isMaster==1");
+            //Find appropiate new master
+            queryValues = ["id", "fullname", "players", "game_id", socket.gameID, "connected", 1, "ismaster", 0, "ishost", 0, "created_at"];
+            playersLeft = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? AND ?? = ? ORDER BY ?? DESC", queryValues);
+            
+            console.log("Players Left obj: " + JSON.stringify(playersLeft));
+        
+            if(playersLeft.length==0){
+                console.log('\x1b[41;97m%s\x1b[0m', "***Everyone left!***");
+                //Delete everything related to this game!
+            } else {
+                const newMaster = [playersLeft[0].id, playersLeft[0].fullname];
+                // console.log("newMasterArr=" + JSON.stringify(newMaster));
+
+                
+                //Find this master's state.
+                //Give the master no-state.
+                const oldMasterState = await mysqlSelect("state", "players", "id", socket.userID);
+                updatePlayerStates(socket, "no-state");
+
+                //Change masters
+				await mysqlUpdate("players", "ismaster", 0, "id", socket.userID);
+                await mysqlUpdate("players", "ismaster", 1, "id", playersLeft[0].id);
+			
+                // console.log(userID + " lost Master privilege to " + newMaster[0]);
+                console.log('\x1b[42;97m%s\x1b[0m', socket.userID + " lost Master privilege to " + playersLeft[0].id);
+
+                //Give the new master that state
+                //A lil delay to ensure above code has in fact completed.
+                setTimeout(() => {
+                    updatePlayerStates(socket, oldMasterState[0].state)
+                    io.in(socket.gameID).emit('newMaster', newMaster);
+                }, 250);
+            }  
+        } //End if Master
+
+
+        //Mark them as disconnected in DB.
+        await mysqlUpdate("players", "connected", 0, "id", socket.userID);
+        
+        //Update front-end player list.
+        emitPlayersInLobby(io, socket.gameID);
+
+		console.log('\x1b[31;107m%s\x1b[0m', "DISCONNECT TIMER Socket before cPC: gID - uID = " + socket.gameID + "," + socket.userID);
+
+        await checkPlayerCount(io, socket);
+
+        //Clear this timer from the timeouts table
+        const timeoutRow = timeoutUserIDPivot.indexOf(socket.userID);
+        //Important to delete both to keep timeouts and user ID's indexes aligned.
+        timeoutUserIDPivot.splice(timeoutRow, 1);
+        timeouts.splice(timeoutRow, 1);
+
+        delete socket.userID;
+        delete socket.gameID;
+        // socket.handshake.session.save();
+        console.log("Session & Disconnect timeout deleted - no longer needed.");
+
+    }, hatefulConfig.disconnectTimerLength, io, socket);
+    // Important to pass the user data to the timer function!
+
+    timeouts.push(disconnectTimer);
+    timeoutUserIDPivot.push(socket.userID);
+    console.log("Timer pushed.");
+
+
+}
+
 
 async function masterPickedQuestion(io, socket, dirtyQuestionID){
 	await updatePlayerStates(socket, "master-waiting-for-answers", "player-needs-answers");
@@ -438,15 +555,20 @@ async function masterPickedQuestion(io, socket, dirtyQuestionID){
 	requestStateUpdate(io, socket);
 }
 
-function requestStateUpdate(io, socket){
+function requestStateUpdate(io, socket, self = false){
+	if(self){
+		setTimeout((socket) => {
+			socket.emit('update-your-state');
+		}, 1000, socket);
+		return;
+	}
 	//Timeout to let the dust settle and avoid errors due to incomplete database updates.
 	setTimeout((socket, io) => {
 		io.in(socket.gameID).emit('update-your-state');
-	}, 2000, socket, io);
+	}, 1000, socket, io);
 }
 
 async function playerConfirmedAnswers(io, socket, dirtyAnswerIDS){
-	console.log("in playerConfirmedAnswers");
 	if(dirtyAnswerIDS.length === 2){
 		dirtyAnswerIDS[0] = String(dirtyAnswerIDS[0]);
 		dirtyAnswerIDS[1] = String(dirtyAnswerIDS[1]);
@@ -461,14 +583,14 @@ async function playerConfirmedAnswers(io, socket, dirtyAnswerIDS){
 	} else {
 		return;
 	}
-	console.log("in playerConfirmedAnswers -MADE IT THROUGH CHECKS.");
+	// console.log("in playerConfirmedAnswers -MADE IT THROUGH CHECKS.");
 	updatePlayerStates(socket, null, "player-has-answered", true);
 
 	//Check if everyone has answered yet
-	let queryValues = ["id", "players", "game_id", gameID, "connected", 1, "ismaster", 0, "state", "player-has-answered", "created_at"];
+	let queryValues = ["id", "players", "game_id", socket.gameID, "connected", 1, "ismaster", 0, "state", "player-has-answered", "created_at"];
 	let playersAnswered = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? AND ?? = ? ORDER BY ?? DESC", queryValues);
 
-	queryValues = ["id", "players", "game_id", gameID, "connected", 1, "ismaster", 0, "created_at"];
+	queryValues = ["id", "players", "game_id", socket.gameID, "connected", 1, "ismaster", 0, "created_at"];
 	let playersConnected = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? ORDER BY ?? DESC", queryValues);
 
 	if(playersConnected.length === playersAnswered.length){
@@ -480,13 +602,13 @@ async function playerConfirmedAnswers(io, socket, dirtyAnswerIDS){
 	const answerIDS = dirtyAnswerIDS;
 
 	await processConfirmedPlayerAnswers(socket, answerIDS);
-	console.log("finished processing confrimed answers");
+	// console.log("finished processing confrimed answers");
 	showCardBacks(io, socket, answerIDS.length);
-	console.log("finished showing card Backs");
+	// console.log("finished showing card Backs");
 }
 
 async function masterConfirmedWinner(io, socket, dirtyWinnerID){
-	console.log("master-confirmed-winner");
+	// console.log("master-confirmed-winner");
 
 	if(dirtyWinnerID.length > 10){
 			return;
@@ -498,14 +620,14 @@ async function masterConfirmedWinner(io, socket, dirtyWinnerID){
 		return;
 	}
 
-	console.log("Dirty Winner Id PASSED");
+	// console.log("Dirty Winner Id PASSED");
 	//if we made it this far, input is clean
 	const winnerID = dirtyWinnerID;
 
 	scoreWinner(socket, winnerID);
 
 	await processConfirmedWinner(socket, winnerID);
-	console.log("finished processing confrimed winners");
+	// console.log("finished processing confrimed winners");
 
 	await updatePlayerStates(socket, "master-winner-chosen", "player-winner-chosen");
 
@@ -556,7 +678,7 @@ async function updatePlayerStates(socket, masterState = null, playerState = null
 	const playersInGame = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? ", queryValues);
 	//Returns array of objects
 	
-	for(i=0;i<playersInGame.length;i++){
+	for(let i=0;i<playersInGame.length;i++){
 		if (playersInGame[i].ismaster == 1 && masterState !== null){
 			await mysqlUpdate("players", "state", masterState, "id", playersInGame[i].id);
 		} 
@@ -573,7 +695,12 @@ async function updatePlayerStates(socket, masterState = null, playerState = null
 //Game states logic
 
 async function startGame(io, socket, masterID = null){
-	console.log("In start game!!!");
+	//reset the stagger delay
+	io.in(socket.gameID).staggerDelay = 0;
+
+
+
+	// console.log("In start game!!!");
 	if(socket.userID == null){
 		return;
 	}
@@ -592,17 +719,19 @@ async function startGame(io, socket, masterID = null){
 		// if (isHost != 1){
 		// 	return;
 		// }
-		isMaster = await mysqlSelect("ismaster", "players", "id", userID);
+		let isMaster = await mysqlSelect("ismaster", "players", "id", userID);
 		//Returns array of objects
 		//First row, ismaster attribute.
 		isMaster = isMaster[0].ismaster;		
 
 		//Make sure this user is actually master otherwise request refresh.
+		//Only the master can start game
 		if (isMaster != 1){
 			return;
 		}
 
-		console.log("Is Host, Starting Game!")
+		console.log('\x1b[103;30m%s\x1b[0m', "Is Master, Starting Game!")
+		
 		const queryValues = ["rounds", "game_id", gameID];
 		await mysqlCustom("INSERT INTO ?? (??) VALUES (?);", queryValues);
 		
@@ -623,13 +752,14 @@ async function startGame(io, socket, masterID = null){
 function showPlayerQuestionWaitingScreen(socket) {
 	try {
 		var data = fs.readFileSync(path.resolve(__dirname, "game-states/player-wait-for-question.html"), 'utf8');
-		console.log("File read");
+		// console.log("File read");
 		// setTimeout((socket) => {
 		socket.emit("load-new-state", data);
 		// }, 500, socket);
 	} catch(e) {
 		// alertSocket(socket, "Sorry, we couldn't load your game. Something went wrong on our end. Please refresh the page or try again later.")
-		console.log('Error:', e.stack);
+		console.log('\x1b[107;30m%s\x1b[0m', '***Error*** File not read:', e.stack);
+
 	}
 }
 
@@ -657,7 +787,7 @@ async function getMasterQuestions(socket) {
 
 	//Make data for new game state
 	let questionsInsert = "";
-	for(i=0;i<questions.length;i++){
+	for(let i=0;i<questions.length;i++){
 		
 		const queryValues = ["round_question", "round_id", "question_id", roundID[0].id, questions[i].id];
 		mysqlCustom("INSERT INTO ?? (??, ??) VALUES (?, ?);", queryValues);
@@ -787,7 +917,7 @@ async function scoreCard(winnerCard, offeredCards, table, questionID = null) {
 		}
 
 	//Calculate average score of loosers
-	offeredCardsScoreAVG = offeredQuestionsTotalScore / (offeredCards.length - 1);
+	let offeredCardsScoreAVG = offeredQuestionsTotalScore / (offeredCards.length - 1);
 	//calculate chosen card score against average of cards offered.
 	
 		winProbability = 1 / ( 1 + (10**((offeredCardsScoreAVG - winnerCard[index].score)/400)));
@@ -817,7 +947,7 @@ async function getPlayerAnswers(socket) {
 	console.log(socket.userID + "GETTING ASNWERS START TIME=" + Date.now())
 
 		//make sure theyre not master
-		isMaster = await mysqlSelect("ismaster", "players", "id", socket.userID);
+		let isMaster = await mysqlSelect("ismaster", "players", "id", socket.userID);
 		//Returns array of objects
 		//First row, ismaster attribute.
 		isMaster = isMaster[0].ismaster;
@@ -862,37 +992,43 @@ async function getPlayerAnswers(socket) {
 
 	//Get best answers for that question from question_answers except answers already offered.
 	queryValues = ["answer_id", "question_answer", "score", averageScore, "question_id", latestRound[0].question_id, "answer_id", "round_answer", "round_id", latestRound[0].id];
-	const topRandomAnswers = await mysqlCustom("SELECT DISTINCT ?? AS id FROM ?? WHERE ?? >= ? AND ?? = ? EXCEPT SELECT ?? AS id FROM ?? WHERE ?? = ? ORDER BY RAND() LIMIT 4", queryValues);
-	console.log("topRandomAnswers=" + topRandomAnswers.length)
+	const topRandomAnswers = await mysqlCustom("SELECT DISTINCT ?? AS id FROM ?? WHERE ?? > ? AND ?? = ? EXCEPT SELECT ?? AS id FROM ?? WHERE ?? = ? ORDER BY RAND() LIMIT " + hatefulConfig.goodAnswers, queryValues);
+	// console.log("topRandomAnswers=" + topRandomAnswers.length)
 
 	//Get Worst answers for that question to give them a chance except answers already offered.
-	const lowRandomAnswers = await mysqlCustom("SELECT DISTINCT ?? AS id FROM ?? WHERE ?? <= ? AND ?? = ? EXCEPT SELECT ?? AS id FROM ?? WHERE ?? = ? ORDER BY RAND() LIMIT 2", queryValues);
-	console.log("lowRandomAnswers=" + lowRandomAnswers.length)
+	const lowRandomAnswers = await mysqlCustom("SELECT DISTINCT ?? AS id FROM ?? WHERE ?? < ? AND ?? = ? EXCEPT SELECT ?? AS id FROM ?? WHERE ?? = ? ORDER BY RAND() LIMIT " + hatefulConfig.badAnswers, queryValues);
+	// console.log("lowRandomAnswers=" + lowRandomAnswers.length)
 	
 	//Add a random player name from the game as an answer except answers already offered.
 	queryValues = ["id", "players", "id", socket.userID, "game_id", socket.gameID, "player_roaster_id", "round_answer", "round_id", latestRound[0].id, "player_roaster_id"];
 	const roasterNameAnswer = await mysqlCustom("SELECT DISTINCT ?? FROM ?? WHERE ?? <> ? AND ?? = ? EXCEPT SELECT ?? AS id FROM ?? WHERE ?? = ? AND ?? IS NOT NULL ORDER BY RAND() LIMIT 1", queryValues);
-	console.log("roasterNameAnswer=" + roasterNameAnswer.length)
+	// console.log("roasterNameAnswer=" + roasterNameAnswer.length)
 	
 	//Pad out answers with random answers (except answers already offered) from "answers" in case that question has not enough scored answers.
 	const answersMissing = hatefulConfig.answerCards - (topRandomAnswers.length + lowRandomAnswers.length + 1);
-	console.log("Answers Missing=" + answersMissing)
-
-	queryValues = ["id", "answers", "answer_id", "round_answer", "round_id", latestRound[0].id, answersMissing];
-	const randomPaddingAnswers = await mysqlCustom("SELECT DISTINCT ?? FROM ?? EXCEPT SELECT ?? FROM ?? WHERE ?? = ? ORDER BY RAND() LIMIT ?", queryValues);
-	console.log("randomPaddingAnswers=" + randomPaddingAnswers.length)
+	// console.log("Answers Missing=" + answersMissing)
 
 	let answerIDS = topRandomAnswers;
 	answerIDS = answerIDS.concat(lowRandomAnswers);
-	answerIDS = answerIDS.concat(randomPaddingAnswers);
-	console.log("answerIDS=" + JSON.stringify(answerIDS));
+
+	if(answersMissing > 0){
+		queryValues = ["id", "answers", "answer_id", "round_answer", "round_id", latestRound[0].id, answersMissing];
+		const randomPaddingAnswers = await mysqlCustom("SELECT DISTINCT ?? FROM ?? EXCEPT SELECT ?? FROM ?? WHERE ?? = ? ORDER BY RAND() LIMIT ?", queryValues);
+		// console.log("randomPaddingAnswers=" + randomPaddingAnswers.length)
+		answerIDS = answerIDS.concat(randomPaddingAnswers);
+
+	}
+
+
+
+	// console.log("answerIDS=" + JSON.stringify(answerIDS));
 
 
 	//Add offered answers to round_answers to avoid repeats and score answer later
 	queryValues = ["round_answer", "round_id", "player_roaster_id", "player_id", latestRound[0].id, roasterNameAnswer[0].id, socket.userID];
 	await mysqlCustom("INSERT INTO ?? (??, ??, ??) VALUES (?, ?, ?);", queryValues);
 	let debuggingAnswerInserts = 1;
-	for(i=0; i<answerIDS.length; i++){
+	for(let i=0; i<answerIDS.length; i++){
 		console.log("answerIDS["+i+"]=" + JSON.stringify(answerIDS[i]));
 		queryValues = ["round_answer", "round_id", "answer_id", "player_id", latestRound[0].id, answerIDS[i].id, socket.userID];
 		mysqlCustom("INSERT INTO ?? (??, ??, ??) VALUES (?, ?, ?);", queryValues);
@@ -998,7 +1134,7 @@ async function showPlayerAnswers(socket){
 }
 
 async function emitToPlayers(socket, event, data){
-	isMaster = await mysqlSelect("ismaster", "players", "id", socket.userID);
+	let isMaster = await mysqlSelect("ismaster", "players", "id", socket.userID);
 	//Returns array of objects
 	//First row, ismaster attribute.
 	isMaster = isMaster[0].ismaster;
@@ -1013,7 +1149,7 @@ async function emitToPlayers(socket, event, data){
 async function getRoundQuestion(socket, self = null){
 //Get current question
 	//Select latest round & question
-	queryValues = ["id", "question_id", "rounds", "game_id", socket.gameID, "id"];
+	let queryValues = ["id", "question_id", "rounds", "game_id", socket.gameID, "id"];
 	const latestRound = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? ORDER BY ?? DESC LIMIT 1", queryValues);
 
 	//Get round question text
@@ -1060,7 +1196,7 @@ function showMainGameTemplate(socket, toSelf = null){
 		// }, 500, socket);
 	} catch(e) {
 		alertSocket(socket, "Sorry, we couldn't load your game. Something went wrong on our end. Please refresh the page or try again later.")
-		console.log('Error:', e.stack);
+		console.log('\x1b[107;30m%s\x1b[0m', '***Error*** File not read:', e.stack);
 	}
 }
 
@@ -1074,7 +1210,7 @@ function showMasterAnswerWaitingScreen(socket){
 		// }, 500, socket);
 	} catch(e) {
 		alertSocket(socket, "Sorry, we couldn't load your game. Something went wrong on our end. Please refresh the page or try again later.")
-		console.log('Error:', e.stack);
+		console.log('\x1b[107;30m%s\x1b[0m', '***Error*** File not read:', e.stack);
 	}
 }
 
@@ -1087,14 +1223,26 @@ function newPlayerWaitForNextRound(socket){
 		// }, 500, socket);
 	} catch(e) {
 		alertSocket(socket, "Sorry, we couldn't load your game. Something went wrong on our end. Please refresh the page or try again later.")
-		console.log('Error:', e.stack);
+		console.log('\x1b[107;30m%s\x1b[0m', '***Error*** File not read:', e.stack);
 	}
 }
 
+function disconnectedOrTimeout(socket){
+	try {
+		var data = fs.readFileSync(path.resolve(__dirname, "game-states/disconnected-or-timeout.html"), 'utf8');
+		console.log("File read");
+		// setTimeout((socket) => {
+		socket.emit("load-new-state", data);
+		// }, 500, socket);
+	} catch(e) {
+		alertSocket(socket, "Sorry, we couldn't load your game. Something went wrong on our end. Please refresh the page or try again later.")
+		console.log('\x1b[107;30m%s\x1b[0m', '***Error*** File not read:', e.stack);
+	}
+}
 async function processConfirmedPlayerAnswers(socket, answerIDS) {
 	console.log("processConfirmedPlayerAnswers, answerIDS:" + JSON.stringify(answerIDS));
 
-	queryValues = ["id", "question_id", "rounds", "game_id", socket.gameID, "id"];
+	let queryValues = ["id", "question_id", "rounds", "game_id", socket.gameID, "id"];
 	const latestRound = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? ORDER BY ?? DESC LIMIT 1", queryValues);
 
 	// queryValues = ["id", "blanks", "questions", "id", latestRound[0].question_id];
@@ -1157,7 +1305,7 @@ async function processConfirmedPlayerAnswers(socket, answerIDS) {
 
 async function processConfirmedWinner(socket, winnerID) {
 	console.log("processConfirmedWinner, winnerID:" + JSON.stringify(winnerID));
-
+	let queryValues;
 	queryValues = ["id", "question_id", "rounds", "game_id", socket.gameID, "id"];
 	const latestRound = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? ORDER BY ?? DESC LIMIT 1", queryValues);
 
@@ -1270,7 +1418,7 @@ async function processConfirmedWinner(socket, winnerID) {
 async function showCardBacks(io, socket, cardBacks){
 	console.log("Card Backs to show: " + cardBacks )
 
-	queryValues = ["id", "rounds", "game_id", socket.gameID, "id"];
+	let queryValues = ["id", "rounds", "game_id", socket.gameID, "id"];
 	const latestRound = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? ORDER BY ?? DESC LIMIT 1", queryValues);
 
 
@@ -1329,7 +1477,7 @@ function showPlayerAnswerWaiting(socket){
 async function getMasterAnswers(socket){
 
 	//make sure theyre master
-	isMaster = await mysqlSelect("ismaster", "players", "id", socket.userID);
+	let isMaster = await mysqlSelect("ismaster", "players", "id", socket.userID);
 	//Returns array of objects
 	//First row, ismaster attribute.
 	isMaster = isMaster[0].ismaster;
@@ -1381,7 +1529,7 @@ async function getMasterAnswers(socket){
 				answersInsert += `</a><a class="click-card hover-effect-grow answer-grouping-container answer-not-selected" id="answer-${playerAnswers[i].player_id}" onclick="pickWinner(${playerAnswers[i].player_id}, null, 'shortlisted')" href="#">`;
 			}
 		} else {
-			//This row has an actual answer
+			//This row has a roaster card
 			//Make data for new game state
 			currentAnswerText = await mysqlSelect("fullname", "players", "id", playerAnswers[i].player_roaster_id);
 			currentAnswerText = "<span class='text-capitalize'>" + currentAnswerText[0].fullname + ". </span>";
@@ -1603,7 +1751,7 @@ async function startTimer(io, socket, timerLength = null, action = null){
 	socket.emit('times-up');
 
 	//select timer length, timerstart from game table where game id = socket game id
-	queryValues = ["timer_start", "timer_length", "games", "id", socket.gameID];
+	let queryValues = ["timer_start", "timer_length", "games", "id", socket.gameID];
 	const mysqlGameTimer = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ?", queryValues);
 
 	console.log("DEBUG: timer_start:" + mysqlGameTimer[0].timer_start + "timer_length:" + mysqlGameTimer[0].timer_length + "-");
@@ -1656,10 +1804,11 @@ function resetTimer(io, socket){
 		io.in(socket.gameID).gameTimer = null
 
 		//clear the timer
-		queryValues = ["games", "timer_start", null, "timer_length", null, "id", socket.gameID];
+		let queryValues = ["games", "timer_start", null, "timer_length", null, "id", socket.gameID];
 		mysqlCustom("UPDATE ?? SET ?? = ?, ?? = ? WHERE ?? = ? ", queryValues);
 
 }
+
 
 async function newMaster(io, socket, newMaster = null, newHost = false){
 	const originalNewMaster = newMaster;
@@ -1667,9 +1816,10 @@ async function newMaster(io, socket, newMaster = null, newHost = false){
 	console.log("In New Master!!!!")
 
 	//Changes master to a new current player
-	//If newMaster = winner then the winner of the last round will become master
+	//If newMaster = "winner" then the winner of the last round will become master
 	//If newMaster is not null, newMaster's value will become the new Master
-	//Otherwise a random new master is chosen
+    //Otherwise a random new master is chosen
+    //Set newHost to true to also make this person the newHost (IF NECESSARY)
 
 
 	let queryValues;
@@ -1696,9 +1846,11 @@ async function newMaster(io, socket, newMaster = null, newHost = false){
 			let newHost = playersLeft[0].id;
 			console.log("newHost=" + newHost);
 
-			await mysqlUpdate("players", "ishost", 1, "id", newHost);
+			//Order is important in case new host happens to be old host again
 			await mysqlUpdate("players", "ishost", 0, "id", oldHost);
-			console.log(oldHost + " lost Host privilege to " + newHost);
+			await mysqlUpdate("players", "ishost", 1, "id", newHost);
+
+			console.log('\x1b[42;97m%s\x1b[0m', oldHost + " lost Host privilege to " + newHost);
 
 			const newHostName = await mysqlSelect("fullname", "players", "id", newHost);
 			const newHostData = [newHost, newHostName[0].fullname];
@@ -1708,7 +1860,16 @@ async function newMaster(io, socket, newMaster = null, newHost = false){
 	}
 
 
-	if(newMaster==="winner"){
+
+
+	if(newMaster === null){
+		//Find an appropriate new Master (someone who has most recently connected to this game)
+		queryValues = ["id", "fullname", "players", "game_id", socket.gameID, "connected", 1, "ismaster", 0, "created_at"];
+		playersLeft = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? ORDER BY ?? DESC", queryValues);
+		newMaster = playersLeft[0].id;
+    } 
+    
+	if(newMaster === "winner"){
 		//Select latest round
 		queryValues = ["id", "rounds", "game_id", socket.gameID, "id"];
 		const latestRound = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? ORDER BY ?? DESC", queryValues);
@@ -1719,26 +1880,20 @@ async function newMaster(io, socket, newMaster = null, newHost = false){
 		newMaster = newMasterResult[0].player_id;
 	}
 
-	if(newMaster === null){
-		//Find an appropriate new Master (someone who has most recently connected to this game)
-		queryValues = ["id", "fullname", "players", "game_id", socket.gameID, "connected", 1, "ismaster", 0, "created_at"];
-		playersLeft = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? ORDER BY ?? DESC", queryValues);
-		newMaster = playersLeft[0].id;
-	}
-
 		//Find the old master's state.
 		//Give the old master no-state.
 		const oldMasterState = await mysqlSelect("state", "players", "id", oldMaster);
 		//State should be overwritten in when next game state is loaded.
-		updatePlayerStates(socket, "no-state");
+		await updatePlayerStates(socket, "disconnected-or-timeout");
 
 		//Change masters
-		await mysqlUpdate("players", "ismaster", 1, "id", newMaster);
 		await mysqlUpdate("players", "ismaster", 0, "id", oldMaster);
-		console.log(oldMaster + " lost Master privilege to " + newMaster);
+		await mysqlUpdate("players", "ismaster", 1, "id", newMaster);
+
+		console.log('\x1b[42;97m%s\x1b[0m', oldMaster + " lost Master privilege to " + newMaster);
 
 		//Give the new master that state
-		updatePlayerStates(socket, oldMasterState[0].state)
+		await updatePlayerStates(socket, oldMasterState[0].state)
 
 		//Find new master name
 		const newMasterName = await mysqlSelect("fullname", "players", "id", newMaster);
@@ -1759,7 +1914,7 @@ async function newMaster(io, socket, newMaster = null, newHost = false){
 async function proceedWithMissingAnswers(io, socket){
 	console.log("proceeding with missing answers")
 	//Select latest round
-	queryValues = ["id", "rounds", "game_id", socket.gameID, "id"];
+	let queryValues = ["id", "rounds", "game_id", socket.gameID, "id"];
 	const latestRound = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? ORDER BY ?? DESC", queryValues);
 
 	//get shortlisted round_answer rows for this round.
@@ -1777,7 +1932,7 @@ async function proceedWithMissingAnswers(io, socket){
 }
 
 async function scoreWinner(socket, winnerID){
-	oldScore = await mysqlSelect("score", "players", "id", winnerID)
+	const oldScore = await mysqlSelect("score", "players", "id", winnerID)
 	await mysqlUpdate("players", "score", oldScore[0].score + 100, "id", winnerID);
 	emitPlayersInLobby(io, socket.gameID);
 }
