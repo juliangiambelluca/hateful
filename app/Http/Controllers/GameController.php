@@ -13,13 +13,23 @@ class GameController extends Controller
 {   
 
     public function lobbyOrGame(){
-        
-        $gameStarted = session('gameStarted');
-        if($gameStarted === true){
-            return redirect('/game');
+
+
+        $game = DB::table('games')->where('id', '=', session('gameID'))->first(); 
+
+        if (isset($game)) {
+            //Game exists
+            if($game->started==1){
+                return redirect('/game');
+            } else {
+                return redirect('/lobby');
+            }
         } else {
-            return redirect('/lobby');
+            //There is no such game
+            return redirect('/new-game');
         }
+
+       
     }
 
     private function testLobbyOrGame(){
