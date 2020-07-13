@@ -1,4 +1,4 @@
-"use strict";
+"use strict"; //Comment out for production
 
 //Configuration
 const hatefulConfig = {
@@ -12,7 +12,7 @@ const hatefulConfig = {
 
 	/* Players */
 	minPlayers: 2,			//Minimum players to allow game play
-	maxPlayers: 2,			//Maximum players to allow game play
+	maxPlayers: 3,			//Maximum players to allow game play
 
 	/* Connection */
 	disconnectTimerLength: 10000,	//Recommended: 35 seconds.
@@ -73,6 +73,9 @@ let notify = io.on('connection', (socket) => {
 
 	socket.on('what-is-my-state', async function(){
 		if(socket.userID != null){
+
+			ensureHostAndMaster(io, socket);
+
 			let userStateResult = await mysqlSelect("state", "players", "id", socket.userID);
 			let userState = userStateResult[0].state;
 			console.log('\x1b[97;44m%s\x1b[0m', socket.userID + "'s state is: " + userState);
@@ -449,8 +452,8 @@ async function disconnectUser(io, socket){
 
         if (isHost==1){
             //Find appropiate new host
-            queryValues = ["id", "fullname", "players", "game_id", socket.gameID, "connected", 1, "ishost", 0, "ismaster", 0, "created_at"];
-            playersLeft = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? AND ?? = ? ORDER BY ?? DESC", queryValues);
+            queryValues = ["id", "fullname", "players", "game_id", socket.gameID, "connected", 1, "ishost", 0, "created_at"];
+            playersLeft = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? ORDER BY ?? DESC", queryValues);
             
             // console.log("Players Left obj: " + JSON.stringify(playersLeft));
         
@@ -481,8 +484,8 @@ async function disconnectUser(io, socket){
         if (isMaster==1){
             // console.log("isMaster==1");
             //Find appropiate new master
-            queryValues = ["id", "fullname", "players", "game_id", socket.gameID, "connected", 1, "ismaster", 0, "ishost", 0, "created_at"];
-            playersLeft = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? AND ?? = ? ORDER BY ?? DESC", queryValues);
+            queryValues = ["id", "fullname", "players", "game_id", socket.gameID, "connected", 1, "ishost", 0, "created_at"];
+            playersLeft = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? ORDER BY ?? DESC", queryValues);
             
             console.log("Players Left obj: " + JSON.stringify(playersLeft));
         
@@ -710,12 +713,12 @@ async function startGame(io, socket, masterID = null){
 
 		if(masterID != null){userID = masterID};
 
-		// isHost = await mysqlSelect("ishost", "players", "id", userID);
-		// //Returns array of objects
-		// //First row, ismaster attribute.
-		// isHost = isHost[0].ishost;		
+		let isHost = await mysqlSelect("ishost", "players", "id", userID);
+		//Returns array of objects
+		//First row, ismaster attribute.
+		isHost = isHost[0].ishost;		
 
-		// //Make sure this user is actually master otherwise request refresh.
+		//Make sure this user is actually master otherwise request refresh.
 		// if (isHost != 1){
 		// 	return;
 		// }
@@ -726,7 +729,7 @@ async function startGame(io, socket, masterID = null){
 
 		//Make sure this user is actually master otherwise request refresh.
 		//Only the master can start game
-		if (isMaster != 1){
+		if (isMaster != 1 && isHost != 1){
 			return;
 		}
 
@@ -1951,4 +1954,241 @@ async function startNewRound(io, socket){
 
 async function showLoader(io, socket){
 	io.in(socket.gameID).emit('show-loader');
+}
+
+// async function 	ensureCorrectStates(io, socket){
+
+// 	let currentUserStateResult = await mysqlSelect("state", "players", "id", socket.userID);
+// 	const currentUserState = currentUserStateResult[0].state;
+
+// 	//if users state is "player-has-answered" its most likely correct. skip this function.
+// 	//there is also no simple way to correct this state.
+
+// 	switch (currentUserState) {
+// 		case "player-has-answered":
+// 			return currentUserState;
+// 		case "overflow-player":
+// 			return currentUserState;
+// 		case "new-round":
+// 			//Make sure everyone has no-state set for next round.
+// 			//Now that everyone has apart from master has this state, when next players go through this function
+// 			//they will exit out the function as "new-round" states are not accounted for.
+// 			await updatePlayerStates(socket, "new-round", "no-state")
+// 			return currentUserState;
+// 		default:
+// 			break;
+// 	}
+
+
+// 	//Select everyone's state in this game , out of those connected.
+// 	let queryValues = ["state", "players", "game_id", socket.gameID, "connected", 1];
+// 	const playerStates = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ?", queryValues);
+
+// 	//case statement - change each state to a number
+// 	let stateNumbers = [];
+// 	for (let index = 0; index < playerStates.length; index++) {
+// 		switch (userState) {
+// 			//STEP 1 - Master Picking Question whilst players wait
+// 			case "player-waiting-for-question":
+// 				stateNumbers.push(1000);
+// 				break;
+// 			case "master-needs-questions":
+// 				stateNumbers.push(1000);
+// 				break;
+// 			//STEP 2 - Players picking questions whilst master waits
+// 			case "master-waiting-for-answers":
+// 				stateNumbers.push(2000);
+// 				break;
+// 			case "player-needs-answers":
+// 				stateNumbers.push(2000);
+// 				break;
+// 			//STEP 2.5 - Player has picked question
+// 			case "player-has-answered":
+// 				stateNumbers.push(2000);
+// 				break;
+// 			//STEP 3 - Master picking answers chosen whilst players wait
+// 			case "master-needs-answers":
+// 				stateNumbers.push(3000);
+// 				break;
+// 			case "player-waiting-for-results":
+// 				stateNumbers.push(3000);
+// 				break;
+// 			//STEP 4 - Everyone gets to see the results
+// 			case "master-winner-chosen":
+// 				stateNumbers.push(4000);
+// 				break;
+// 			case "player-winner-chosen":
+// 				stateNumbers.push(4000);
+// 				break;
+// 			//STEP 5 - A new round is set to begin.
+// 			// case "new-round":
+// 			// 	stateNumbers.push(5000);
+// 			// 	break;
+// 			default:
+// 				// alertSocket(socket, "Please refresh the page. Something went wrong.");
+// 				console.log("At Ensure Correct States - A player had no relevant states");
+// 				//Set the user's state to no-state?
+// 				break;
+// 		}
+// 	}
+
+// 	//MODE average numbers - thats the "average state" - the most often occuring number is probably the correct state.
+// 	const modeState = modeArray(stateNumbers);
+
+// 	if(modeState === null){
+// 		console.log("UNABLE TO FIND MOST LIKELY STATE - ARRAY EMPTY");
+// 		return currentUserState;
+// 	}
+
+// 	if(modeState.length > 1){
+// 		console.log("UNABLE TO FIND MOST LIKELY STATE - TOO MANY MODES");
+// 		return currentUserState;
+// 	}
+
+// 	//round the average (DOWN?) - test with rounding down to ensure not skipping steps, or just round to the nearest next state.
+// 	let roundedModeState = Math.round(modeState/1000)*1000
+
+// 	//if user is master, leave rounded to nearest 1000
+// 	let isMaster = await mysqlSelect("ismaster", "players", "id", socket.userID);
+// 	isMaster = isMaster[0].ismaster;		
+// 	if (isMaster != 1){
+// 		roundedModeState += 25;
+// 	}
+
+// 	//case statement for each number to each corresponding state
+// 	let approximatedState;
+// 	switch (roundedModeState) {
+// 		//STEP 1
+// 		case 1025:
+// 			approximatedState = "player-waiting-for-question";
+// 			break;
+// 		case 1000:
+// 			approximatedState = "master-needs-questions";
+// 			break;
+// 		//STEP 2
+// 		case 2000:
+// 			approximatedState = "master-waiting-for-answers";
+// 			break;
+// 		case 2025:
+// 			approximatedState = "player-needs-answers";
+// 			break;
+// 		//STEP 3
+// 		case 3000:
+// 			approximatedState = "master-needs-answers";
+// 			break;
+// 		case 3025:
+// 			approximatedState = "player-waiting-for-results";
+// 			break;
+// 		//STEP 4
+// 		case 4000:
+// 			stateNumberTotal += 4000;
+// 			approximatedState = "master-winner-chosen";
+// 			break;
+// 		case 4025:
+// 			approximatedState = "player-winner-chosen";
+// 			break;
+// 		// case 5000:
+// 		// 	stateNumberTotal += 5000;
+// 		// 	approximatedState = "new-round";
+// 		// 	break;
+// 		default:
+// 			console.log("ROUNDED MODE STATE DID NOT EQUAL ANYTHING USEFUL");
+// 			return currentUserState;
+// 	}
+// 	//assign this user's state accordingly
+// 	await mysqlUpdate("players", "state", approximatedState, "id", socket.userID);
+
+// 	return approximatedState;
+// }
+
+// function modeArray(array) {
+// 	//Returns highest occuring ELEMENT VALUE in an array as an array
+// 	//If there is a tie, an array of all highest occuring elements are returned.
+
+// 	if (array.length == 0) return null;
+	
+// 	var modeMap = {},
+// 	  maxCount = 1,
+// 	  modes = [];
+  
+// 	for (var i = 0; i < array.length; i++) {
+// 	  var el = array[i];
+  
+// 	  if (modeMap[el] == null) modeMap[el] = 1;
+// 	  else modeMap[el]++;
+  
+// 	  if (modeMap[el] > maxCount) {
+// 		modes = [el];
+// 		maxCount = modeMap[el];
+// 	  } else if (modeMap[el] == maxCount) {
+// 		modes.push(el);
+// 		maxCount = modeMap[el];
+// 	  }
+// 	}
+
+// 	return modes;
+//   }
+
+
+async function ensureHostAndMaster(io, socket){
+
+	//Select masters flagged CONNECTED
+	let queryValues = ["id", "players", "game_id", socket.gameID, "connected", 1, "ismaster", 1];
+	const connectedMasters = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ?;", queryValues);
+
+	//Select hosts flagged CONNECTED
+    queryValues = ["id", "players", "game_id", socket.gameID, "connected", 1, "ishost", 1];
+	const connectedHosts = await mysqlCustom("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ?;", queryValues);
+
+
+	if(connectedMasters.length === 0 && connectedHosts.length === 0){
+		//clear all hosts and masters
+		await mysqlUpdate("players", "ishost", 0, "game_id", socket.gameID);
+		await mysqlUpdate("players", "ismaster", 0, "game_id", socket.gameID);
+		//there's nobody in charge
+
+		//find a new host&master
+		 //Find appropiate new host/master
+		 queryValues = ["id", "fullname", "players", "game_id", socket.gameID, "connected", 1, "ishost", 0, "ismaster", 0, "created_at"];
+		 playersLeft = await mysqlCustom("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? AND ?? = ? ORDER BY ?? DESC", queryValues);
+		 
+		 if(playersLeft.length == 0){
+			 return;
+		 } else {
+		
+			 await mysqlUpdate("players", "ishost", 1, "id", playersLeft[0].id);
+			 await mysqlUpdate("players", "ismaster", 1, "id", playersLeft[0].id);
+			 // console.log('\x1b[42;97m%s\x1b[0m', "***Everyone left!***");
+			 
+			 console.log('\x1b[42;97m%s\x1b[0m',socket.userID + " lost Host privilege to " + playersLeft[0].id);
+
+			 const newHost = [playersLeft[0].id, playersLeft[0].fullname];
+			 io.in(socket.gameID).emit('newHost', newHost);
+		 }
+
+	} else if (connectedMasters.length === 0){
+	    //clear all hosts and masters
+		await mysqlUpdate("players", "ishost", 0, "game_id", socket.gameID);
+		await mysqlUpdate("players", "ismaster", 0, "game_id", socket.gameID);
+		//we just need a new master
+		//make host the master
+		//connectedHosts[0].id should be the new master
+		await mysqlUpdate("players", "ishost", 1, "id", connectedHosts[0].id);
+		await mysqlUpdate("players", "ismaster", 1, "id", connectedHosts[0].id);
+
+
+	} else if (connectedHosts.length === 0){
+		//clear all hosts and masters
+		await mysqlUpdate("players", "ishost", 0, "game_id", socket.gameID);
+		await mysqlUpdate("players", "ismaster", 0, "game_id", socket.gameID);
+		//we just need a new host
+		//make master the host
+		//connectedMasters[0].id should be the new host
+		await mysqlUpdate("players", "ishost", 1, "id", connectedMasters[0].id);
+		await mysqlUpdate("players", "ismaster", 1, "id", connectedMasters[0].id);
+
+	} else {
+		//everything seems to be ok...
+		return;
+	}
 }
