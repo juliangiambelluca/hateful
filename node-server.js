@@ -163,7 +163,7 @@ const client = {
 
 					//Player will get flagged as disconnected if there's too many players.
 					checkPlayerCount(io, socket); 
-					client.updateState(io, socket, true);
+					client.downloadState(io, socket, true);
 
 			}, io.in(socket.gameID).staggerDelay, io, socket);
 			//add stagger delay for next person
@@ -184,7 +184,7 @@ const client = {
 		}
 	},
 
-	updateState: function (io, socket, self = false){
+	downloadState: function (io, socket, self = false){
 		//Tells the client(s) to check & load their state
 
 		if(self){
@@ -199,56 +199,27 @@ const client = {
 		// }, hatefulConfig.dustSettleDelay, socket, io);
 	},
 
-	loadState: function (io, socket)	{
+	loadState: async function (io, socket)	{
 		if(socket.userID === null){
 			alertSocket(socket, "Please refresh the page, something went wrong.")
 		}
 
-		let isMaster = await db.select("ismaster", "players", "id", userID);
+		let isMaster = await db.select("ismaster", "players", "id", socket.userID);
 		isMaster = isMaster[0].ismaster;		
 
 		ensureHostAndMaster(io, socket);
 
-		let userStateResult = await db.select("state", "players", "id", socket.userID);
-		let userState = userStateResult[0].state;
-		console.log('\x1b[97;44m%s\x1b[0m', socket.userID + "'s state is: " + userState);
-
-		switch (userState) {
-					
-			case "disconnected":
-				disconnectedOrTimeout(socket);
-				
-			break;
-
-			case "idle":
-				newPlayerWaitForNextRound(socket);
-			break;
-		
-			case "overflow":
-				socket.emit("overflow-player");
-			break;
-		
-			case "answered":
-				showMainGameTemplate(socket, "self");
-				getRoundQuestion(socket, "self");
-				showPlayerAnswerWaiting(socket);
-				//If timer is already set (which it should be), they will just see a continuation of their previous countdown.
-				startTimer(io, socket, hatefulConfig.gameTimerLength, function() {proceedWithMissingAnswers(io, socket)});
-			break;
-		
-			default:
-				break;
-		}
-
 		let gameStateResult = await db.select("state", "games", "id", socket.gameID);
 		let gameState = gameStateResult[0].state;
-		console.log('\x1b[97;44m%s\x1b[0m', socket.gameID + "'s state is: " + gameState);
+		console.log('\x1b[97;44m%s\x1b[0m', socket.gameID + "'s GAME state is: " + gameState);
 
 		if(gameState === "start"){gameState = "picking-question"};
 
 		switch (gameState) {
 			case "picking-question":
-				startTimer(io, socket, hatefulConfig.gameTimerLength, function() {newMaster(io, socket, null, true)});
+				game.startTimer(io, socket, hatefulConfig.gameTimerLength, function() {
+					newMaster(io, socket, null, true)
+				});
 				if (isMaster == 1){
 					//Reset staggering delay.
 					io.in(socket.gameID).staggerDelay = 0;
@@ -260,12 +231,14 @@ const client = {
 			break;
 			
 			case "picking-answer":
-				startTimer(io, socket, hatefulConfig.gameTimerLength, function() {proceedWithMissingAnswers(io, socket)});
+				game.startTimer(io, socket, hatefulConfig.gameTimerLength, function() {
+					proceedWithMissingAnswers(io, socket)
+				});
 				if (isMaster == 1){
 					showMasterAnswerWaitingScreen(socket);
 				} else {			
 					showMainGameTemplate(socket);
-					getRoundQuestion(socket);
+					socket.emit('show-player-question', await getRoundQuestion(socket));
 					console.log('\x1b[43;30m%s\x1b[0m', "Get Answer Staggering Delay: " +  io.in(socket.gameID).staggerDelay);
 					//Stagger answer getting to avoid duplicates being offered.
 					setTimeout((socket) => {
@@ -278,14 +251,20 @@ const client = {
 			break;
 			
 			case "picking-winner":
+					player.updateState(socket, "active");
+					// ⛔ Make function that changes your state to active only if it used to be "answered"
+
+
 					//if master times out, change master - and if they're host, change host too.
-					startTimer(io, socket, hatefulConfig.gameTimerLength,  function() {newMaster(io, socket, null, true)});
+					game.startTimer(io, socket, hatefulConfig.gameTimerLength,  function() {
+						newMaster(io, socket, null, true)
+					});
 				if (isMaster == 1){	
 					//reset stagger delay
 					io.in(socket.gameID).staggerDelay = 0;
 					//Master needs to see everyones card's
 					showMainGameTemplate(socket, "self");
-					getRoundQuestion(socket, "self");
+					socket.emit('show-player-question', await getRoundQuestion(socket));
 					getMasterAnswers(socket);
 				} else {
 					//TODO - SHOW THEM dummy answer cards
@@ -295,13 +274,13 @@ const client = {
 			
 			case "show-winner":
 				showMainGameTemplate(socket, "self");
-				getRoundQuestion(socket, "self");
+				socket.emit('show-player-question', await getRoundQuestion(socket));
 				showWinners(socket);
 
 				if (isMaster == 1){		
-					startTimer(io, socket, (hatefulConfig.gameTimerLength / 3), async function(io, socket) {
+					game.startTimer(io, socket, (hatefulConfig.gameTimerLength / 3), async function(io, socket) {
 						await game.updateState(io, socket, "start");
-						client.updateState(io, socket);
+						client.downloadState(io, socket);
 					});
 				} else {
 					//Emit dummy timer
@@ -310,10 +289,45 @@ const client = {
 			break;
 			case "start":
 				showLoader(io, socket);
-				startNewRound(io, socket);
+				if (isMaster == 1){		
+					startNewRound(io, socket);
+				}
 				break;
 			default:
 				alertSocket(socket, "Please refresh the page. Something went wrong.");
+				break;
+		}
+
+		let userStateResult = await db.select("state", "players", "id", socket.userID);
+		let userState = userStateResult[0].state;
+		console.log('\x1b[97;44m%s\x1b[0m', socket.userID + "'s USER state is: " + userState);
+
+		switch (userState) {
+					
+			case "disconnected":
+				disconnectedOrTimeout(socket);
+				break;
+
+			case "idle":
+				newPlayerWaitForNextRound(socket);
+				break;
+		
+			case "overflow":
+				socket.emit("overflow-player");
+				break;
+		
+			case "answered":
+				showMainGameTemplate(socket, "self");
+				socket.emit('show-player-question', await getRoundQuestion(socket));
+			
+				showPlayerAnswerWaiting(socket);
+				//If timer is already set (which it should be), they will just see a continuation of their previous countdown.
+				game.startTimer(io, socket, hatefulConfig.gameTimerLength, function() {
+					proceedWithMissingAnswers(io, socket)
+				});
+				break;
+		
+			default:
 				break;
 		}
 
@@ -321,6 +335,11 @@ const client = {
 }
 
 const game = {
+
+	updateState: async function (io, socket, stateName){
+		await db.update("games", "state", stateName, "id", socket.gameID);
+		this.clearTimer(io, socket);
+	},
 
 	start: async function (io, socket, masterID = null){
 		//reset the stagger delay
@@ -356,14 +375,63 @@ const game = {
 		//For each player, set their new game state.
 		//updatePlayerState(gameID, masterState, playerState)
 		// await updatePlayerStates(socket, "master-needs-questions", "player-waiting-for-question")
-		await game.updateState(io, socket, "picking-question");
+		await this.updateState(io, socket, "picking-question");
 
 		//Tell everyone to refresh so laravel loads the game view.
 		// setTimeout((io, gameID) => {
-		client.refresh(io, socket, gameID);
-		// }, 1000, io, gameID);
-			
+	
+		// }, 1000, io, gameID);		
+	},
+
+	startTimer: async function (io, socket, timerLength = null, action = null){
+
+		socket.emit('times-up');
+	
+		//select timer length, timerstart from game table where game id = socket game id
+		let queryValues = ["timer_start", "timer_length", "games", "id", socket.gameID];
+		const mysqlGameTimer = await db.query("SELECT ??, ?? FROM ?? WHERE ?? = ?", queryValues);
+	
+		console.log("DEBUG: timer_start:" + mysqlGameTimer[0].timer_start + "timer_length:" + mysqlGameTimer[0].timer_length + "-");
+	
+		//if timer start + timer length is in past or timer start is null, timer expired -- insert (update) timer
+		const endOfTimer = parseInt(mysqlGameTimer[0].timer_start) + parseInt(mysqlGameTimer[0].timer_length);
+		const timeLeftOnTimer = endOfTimer - (Date.now()/1000);
 		
+		console.log("timeLeftOnTimer:" + timeLeftOnTimer);
+	
+		if(!(mysqlGameTimer[0].timer_start == null || isNaN(endOfTimer) || timeLeftOnTimer <= 0)){
+			//endOfTimer should be a valid time stamp.
+			//timer is still current -> (timerstart + timerlength) - current time = time left on timer
+			//emit start timer with time left on timer
+			socket.emit('start-timer', timeLeftOnTimer);
+	
+		} else {
+			//Timer hasn't been set or is a dodgy value.
+	
+			//If this game already has a game timer, delete it.
+			clearTimeout(io.in(socket.gameID).gameTimer);
+			io.in(socket.gameID).gameTimer = null
+	
+			//Create the timer
+			queryValues = ["games", "timer_start", (Date.now()/1000), "timer_length", timerLength, "id", socket.gameID];
+			db.query("UPDATE ?? SET ?? = ?, ?? = ? WHERE ?? = ? ", queryValues);
+	
+			socket.emit('start-timer', timerLength);
+	
+			//Create a new timer
+			io.in(socket.gameID).gameTimer = setTimeout((io, socket, action) => {
+				console.log("GAME TIMER GONE OFF");
+				io.in(socket.gameID).emit('times-up');
+	
+				if(action !== null){
+					action(io, socket);
+				}
+				io.in(socket.gameID).gameTimer = null
+				//=5 secs to help everyone sync properly.
+			}, ((timerLength + 5) * 1000), io, socket, action);
+	
+		}
+	
 	},
 
 	clearTimer: function (io, socket){
@@ -377,23 +445,18 @@ const game = {
 		db.query("UPDATE ?? SET ?? = ?, ?? = ? WHERE ?? = ? ", queryValues);
 	},
 
-	updateState: async function (io, socket, stateName){
-		await db.update("games", "state", stateName, "id", socket.gameID);
-		this.clearTimer(io, socket);
-	},
-
 	checkEveryoneAnswered: 	async function(io, socket){
 		//Check if everyone has answered yet
-		let queryValues = ["id", "players", "game_id", socket.gameID, "connected", 1, "ismaster", 0, "state", "player-has-answered", "created_at"];
-		let playersAnswered = await db.query("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? AND ?? = ? ORDER BY ?? DESC", queryValues);
+		let queryValues = ["id", "players", "game_id", socket.gameID, "connected", 1, "ismaster", 0, "state", "answered"];
+		let playersAnswered = await db.query("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? AND ?? = ?", queryValues);
 	
-		queryValues = ["id", "players", "game_id", socket.gameID, "connected", 1, "ismaster", 0, "created_at"];
-		let playersConnected = await db.query("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? ORDER BY ?? DESC", queryValues);
+		queryValues = ["id", "players", "game_id", socket.gameID, "connected", 1, "ismaster", 0];
+		let playersConnected = await db.query("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ?", queryValues);
 	
 		//If everyone answered
 		if(playersConnected.length === playersAnswered.length){
 			this.updateState(io, socket, "picking-winner");
-			client.updateState(io, socket);
+			client.downloadState(io, socket);
 		}
 	}
 	
@@ -414,10 +477,32 @@ const master = {
 	},
 
 	pickQuestion: async function (io, socket, dirtyQuestionID){
-		// await updatePlayerStates(socket, "master-waiting-for-answers", "player-needs-answers");
-		await game.updateState(io, socket, "picking-answer");
-		await calculateAndScoreQuestion(socket, dirtyQuestionID);
-		client.updateState(io, socket);
+		
+		if (socket.userID == null) {
+			console.log("Returned out of masterpickedquestion... no user session.")
+			return;
+		}
+
+		/* SANITISATION INPUTS */
+		let questionID = 0;
+		//If question id has more than 10 digits it's definetely invalid!
+		if (dirtyQuestionID.toString().length < 10){
+				questionID = parseInt(dirtyQuestionID);
+				if (questionID = NaN){
+					console.log("Question ID NAN")
+					return;
+				}
+				console.log("Set Clean Question ID");
+		} else {
+			console.log("Dirty Question ID too long!")
+			return;
+		}
+		/* SANITISATION COMPLETE */
+
+		//Update round with chosen question
+		await db.update("rounds", "question_id", questionID, "game_id", socket.gameID)
+		
+		scoreQuestion(socket, questionID);
 	},
 
 	pickWinner: async function (io, socket, dirtyWinnerID){
@@ -440,34 +525,26 @@ const master = {
 		scoreWinner(socket, winnerID);
 	
 		await processConfirmedWinner(socket, winnerID);
-		// console.log("finished processing confrimed winners");
+		console.log("finished processing confrimed winners");
 	
 		// await updatePlayerStates(socket, "master-winner-chosen", "player-winner-chosen");
 		await game.updateState(io, socket, "show-winner");
 
 	
-		client.updateState(io, socket);
+		client.downloadState(io, socket);
 	}
 	
 }
 
 const player = {
-	updateState: async function (socket, state = null, justMe = false){
-		if(justMe === true){
-			await db.update("players", "state", state, "id", socket.userID);
-			return;
-		}
-
-		//For each player, update their state.		
-		for(let i=0;i<playersInGame.length;i++){
-			await db.update("players", "state", state, "id", playersInGame[i].id);
-		}
-	
-		// //reset the timer
-		// resetTimer(io, socket);
-	
+	updateState: async function (socket, state = null){
+		// if(everyone === false){
+		await db.update("players", "state", state, "id", socket.userID);
+			// return;
+		// }
+		// await db.update("players", "state", state, "game_id", socket.gameID);
 	},
-
+	
 	confirmAnswer: async function (io, socket, dirtyAnswerIDS){
 		/* Sanitise Data */
 		
@@ -491,18 +568,13 @@ const player = {
 
 		// console.log("in playerConfirmedAnswers -MADE IT THROUGH CHECKS.");
 		// updatePlayerStates(socket, null, "player-has-answered", true);
-		await player.updateState(io, socket, "answered", true);
 
 		game.checkEveryoneAnswered(io, socket);
 	
-		await processConfirmedPlayerAnswers(socket, answerIDS);
-		// console.log("finished processing confrimed answers");
+		await shortlistAndScoreAnswers(socket, answerIDS);
 		showCardBacks(io, socket, answerIDS.length);
-		// console.log("finished showing card Backs");
 	}
 }
-
-
 
 
 
@@ -515,17 +587,21 @@ io.on('connection', (socket) => {
 	
 	socket.on('start-game', function(){
 		game.start(io, socket);
+		client.refresh(io, socket, gameID);
 	});
 
 	socket.on('what-is-my-state', async function(){
-		getAndServeState(io, socket);
+		client.loadState(io, socket);
 	});
 
 	socket.on('master-picked-question', async (dirtyQuestionID) => {
 		master.pickQuestion(io, socket, dirtyQuestionID);
+		await game.updateState(io, socket, "picking-answer");
+		client.downloadState(io, socket);
 	});
 
 	socket.on('player-confirmed-answers', async (dirtyAnswerIDS) => {
+		player.updateState(socket, "answered");
 		player.confirmAnswer(io, socket, dirtyAnswerIDS);
 	});
 
@@ -537,7 +613,7 @@ io.on('connection', (socket) => {
 		db.update("players", "connected", 0, "id", socket.userID);
 		//Change this one user's state.
 		// updatePlayerStates(socket, null, "overflow-player", true);
-		player.updateState(socket, "overflow", true);
+		player.updateState(socket, "overflow");
 		socket.emit("overflow-player");
 		emitPlayersInLobby(io, socket.gameID);
 	});
@@ -547,33 +623,6 @@ io.on('connection', (socket) => {
 	}); 
 
 }); //End of connection scope.
-
-
-
-
-
-
-
-
-// async function getAndServeState(io, socket){
-
-
-// 		let userStateResult = await db.select("state", "players", "id", socket.userID);
-// 		let userState = userStateResult[0].state;
-// 		console.log('\x1b[97;44m%s\x1b[0m', socket.userID + "'s state is: " + userState);
-// 		//white on blue
-
-
-
-// 	} else {
-// 		alertSocket(socket, "Please refresh the page, something went wrong.")
-// 	}
-// }
-
-
-
-// Custom Functions area
-
 
 
 
@@ -640,7 +689,7 @@ async function checkPlayerCount(io, socket){
 				
 			//Change this one user's state.
 			// updatePlayerStates(socket, null, "overflow-player", true);
-			await player.updateState(socket, "overflow", true);
+			await player.updateState(socket, "overflow");
 			
 			socket.emit("overflow-player");
 			emitPlayersInLobby(io, socket.gameID);
@@ -654,9 +703,6 @@ async function checkPlayerCount(io, socket){
 		emitPlayersInLobby(io, socket.gameID);
 	}
 }
-
-
-	
 
 async function disconnectUser(io, socket){
 	if (socket.userID == null) {
@@ -781,24 +827,6 @@ async function disconnectUser(io, socket){
 
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 async function emitPlayersInLobby(io, gameID){
 		const queryValues = ["id", "fullname", "score", "ismaster", "players", "game_id", gameID, "connected", 1];
 		const connectedPlayers = await db.query("SELECT ??, ??, ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? ORDER BY score DESC", queryValues);
@@ -807,19 +835,13 @@ async function emitPlayersInLobby(io, gameID){
 
 }
 
-
-
 function alertSocket(socket, message){
-	// setTimeout(function (socket) {
+	setTimeout(function (socket) {
 		socket.emit('alert-socket', message);
-	// }, 3000, socket);
+	}, 3000, socket);
 }
 
-
-
 //Game states logic
-
-
 
 function showPlayerQuestionWaitingScreen(socket) {
 	try {
@@ -901,40 +923,9 @@ async function getMasterQuestions(socket) {
 	socket.emit("load-new-state", data);
 }
 
-async function calculateAndScoreQuestion(socket, dirtyQuestionID){
-	// console.log("Dirty question ID: '" + dirtyQuestionID + "'");
-	//Make sure user is indeed master!
-	// console.log("In master-picked-question")
-	let questionID = 0;
+async function scoreQuestion(socket, questionID){
 
-	//If question id has more than 10 digits it's definetely invalid!
-	if (dirtyQuestionID.toString().length < 10){
-		// try {
-			//If it can't be parsed into an integer it's also definetely invalid!
-			 questionID = parseInt(dirtyQuestionID);
-			console.log("Set Clean Question ID")
-
-		//   }
-		//   catch(err) {
-		// 	console.log("Invalid picked question ID!")
-		// 	return;
-		//   }
-	} else {
-		console.log("Dirty Question ID too long!")
-
-		return;
-	}
-
-	if (socket.userID == null) {
-		console.log("Returned out of masterpickedquestion... no user session.")
-
-		return;
-	}
-
-	//Update round with chosen question
-	db.update("rounds", "question_id", questionID, "game_id", socket.gameID)
-	
-			//Score question against offered questions
+	//Score question against offered questions
 
 	//Select latest round
 	let queryValues = ["id", "rounds", "game_id", socket.gameID, "id"];
@@ -1218,7 +1209,7 @@ async function emitToPlayers(socket, event, data){
 	}
 }
 
-async function getRoundQuestion(socket, self = null){
+async function getRoundQuestion(socket){
 //Get current question
 	//Select latest round & question
 	let queryValues = ["id", "question_id", "rounds", "game_id", socket.gameID, "id"];
@@ -1246,13 +1237,8 @@ async function getRoundQuestion(socket, self = null){
 	   </div>
 	 </div>
 	`
-	if(self === "self"){
-		socket.emit('show-player-question', questionCard);
-	} else {
-		emitToPlayers(socket, "show-player-question", questionCard);
-	}
-
-
+	
+	return questionCard;
 }
 
 function showMainGameTemplate(socket, toSelf = null){
@@ -1271,7 +1257,6 @@ function showMainGameTemplate(socket, toSelf = null){
 		console.log('\x1b[107;30m%s\x1b[0m', '***Error*** File not read:', e.stack);
 	}
 }
-
 
 function showMasterAnswerWaitingScreen(socket){
 	try {
@@ -1311,7 +1296,8 @@ function disconnectedOrTimeout(socket){
 		console.log('\x1b[107;30m%s\x1b[0m', '***Error*** File not read:', e.stack);
 	}
 }
-async function processConfirmedPlayerAnswers(socket, answerIDS) {
+
+async function shortlistAndScoreAnswers(socket, answerIDS) {
 	console.log("processConfirmedPlayerAnswers, answerIDS:" + JSON.stringify(answerIDS));
 
 	let queryValues = ["id", "question_id", "rounds", "game_id", socket.gameID, "id"];
@@ -1341,14 +1327,14 @@ async function processConfirmedPlayerAnswers(socket, answerIDS) {
 			//Shortlist answer
 			const playerRoasterID = answerIDS[i].replace('roaster','');
 			queryValues = ["round_answer", "shortlisted", 1, "order", i, "round_id", latestRound[0].id, "player_id", socket.userID, "player_roaster_id", playerRoasterID];
-			db.query("UPDATE ?? SET ?? = ?, ?? = ? WHERE ?? = ? AND ?? = ? AND ?? = ? ", queryValues);
+			await db.query("UPDATE ?? SET ?? = ?, ?? = ? WHERE ?? = ? AND ?? = ? AND ?? = ? ", queryValues);
 			
 			//No need to score it
 		} else {
 
 			//Shortlist answer
 			queryValues = ["round_answer", "shortlisted", 1, "order", i, "round_id", latestRound[0].id, "player_id", socket.userID, "answer_id", answerIDS[i]];
-			db.query("UPDATE ?? SET ?? = ?, ?? = ? WHERE ?? = ? AND ?? = ? AND ?? = ? ", queryValues);
+			await db.query("UPDATE ?? SET ?? = ?, ?? = ? WHERE ?? = ? AND ?? = ? AND ?? = ? ", queryValues);
 
 			//score answer
 			
@@ -1365,14 +1351,11 @@ async function processConfirmedPlayerAnswers(socket, answerIDS) {
 				chosenAnswers = await db.query("SELECT answers.id, answers.score FROM answers WHERE answers.id = ?;", queryValues);
 			}
 			
-			setTimeout(() => {
-				
-			console.log("Chosen Answer(s): " + chosenAnswers);
-			}, 1000);
-
+			// console.log("Chosen Answer(s): " + chosenAnswers);
+	
 			scoreCard(chosenAnswers, offeredAnswers, "question_answer", latestRound[0].question_id);
 		}
-	}
+	}//endfor
 }
 
 async function processConfirmedWinner(socket, winnerID) {
@@ -1738,137 +1721,84 @@ async function showWinners(socket){
 	}
 
 
-	async function printWinnerOnTop(socket, playerAnswers){
+async function printWinnerOnTop(socket, playerAnswers){
 
 
 
-		let blanks = 1;
-		let checkForBlanksID = playerAnswers[0].player_id;
-		//Start at one because we'e already  ^ checked 0.
-		for (let index = 1; index < playerAnswers.length; index++) {
-			if (playerAnswers[index].player_id === checkForBlanksID){
-				blanks++;
+	let blanks = 1;
+	let checkForBlanksID = playerAnswers[0].player_id;
+	//Start at one because we'e already  ^ checked 0.
+	for (let index = 1; index < playerAnswers.length; index++) {
+		if (playerAnswers[index].player_id === checkForBlanksID){
+			blanks++;
+		}
+	}
+
+
+
+	let answersInsert = "";
+	let currentAnswerText = "";
+	for (let i = 0; i < playerAnswers.length; i++) {
+		//Skip --don't print this card if it aint a winner
+		if(playerAnswers[i].iswinner != 1){
+			continue;
+		}
+
+		if(playerAnswers[i].player_id === socket.userID){
+			socket.to(socket.gameID).emit("you-lost");
+			socket.emit("you-won");
+		}
+
+		//Check if roaster card or not.
+		if(playerAnswers[i].answer_id != null){
+			//This row has an actual answer
+			//Make data for new game state
+			currentAnswerText = await db.select("answer", "answers", "id", playerAnswers[i].answer_id);
+			currentAnswerText = currentAnswerText[0].answer;
+			if(i===0){
+				answersInsert += `<div  style="display: flex; float: left;">`;
+			}
+			if(i % blanks === 0 && i !== 0 && i !== playerAnswers.length){
+				answersInsert += `</div><div  style="display: flex; float: left;">`;
+			}
+		} else {
+			//This row has an actual answer
+			//Make data for new game state
+			currentAnswerText = await db.select("fullname", "players", "id", playerAnswers[i].player_roaster_id);
+			currentAnswerText = "<span class='text-capitalize'>" + currentAnswerText[0].fullname + ". </span>";
+			// answersInsert += `<a class="click-card answer-not-selected" id="roaster-answer-${playerAnswers[i].player_roaster_id}" onclick="pickAnswer(${playerAnswers[i].player_roaster_id}, 'player-name-roaster', 'shortlisted')" href="#">`;
+			if(i===0){
+				answersInsert += `<div style="display: flex; float: left;">`;
+			}
+			if(i % blanks === 0 && i !== 0 && i !== playerAnswers.length){
+				answersInsert += `</div><div style="display: flex; float: left;">`;
 			}
 		}
-	
 
 
-		let answersInsert = "";
-		let currentAnswerText = "";
-		for (let i = 0; i < playerAnswers.length; i++) {
-			//Skip --don't print this card if it aint a winner
-			if(playerAnswers[i].iswinner != 1){
-				continue;
-			}
-
-			if(playerAnswers[i].player_id === socket.userID){
-				socket.to(socket.gameID).emit("you-lost");
-				socket.emit("you-won");
-			}
-
-			//Check if roaster card or not.
-			if(playerAnswers[i].answer_id != null){
-				//This row has an actual answer
-				//Make data for new game state
-				currentAnswerText = await db.select("answer", "answers", "id", playerAnswers[i].answer_id);
-				currentAnswerText = currentAnswerText[0].answer;
-				if(i===0){
-					answersInsert += `<div  style="display: flex; float: left;">`;
-				}
-				if(i % blanks === 0 && i !== 0 && i !== playerAnswers.length){
-					answersInsert += `</div><div  style="display: flex; float: left;">`;
-				}
-			} else {
-				//This row has an actual answer
-				//Make data for new game state
-				currentAnswerText = await db.select("fullname", "players", "id", playerAnswers[i].player_roaster_id);
-				currentAnswerText = "<span class='text-capitalize'>" + currentAnswerText[0].fullname + ". </span>";
-				// answersInsert += `<a class="click-card answer-not-selected" id="roaster-answer-${playerAnswers[i].player_roaster_id}" onclick="pickAnswer(${playerAnswers[i].player_roaster_id}, 'player-name-roaster', 'shortlisted')" href="#">`;
-				if(i===0){
-					answersInsert += `<div style="display: flex; float: left;">`;
-				}
-				if(i % blanks === 0 && i !== 0 && i !== playerAnswers.length){
-					answersInsert += `</div><div style="display: flex; float: left;">`;
-				}
-			}
-	
-	
-			answersInsert += `
-			<div class="card game-card answer-card">
-			   <div class="card-body game-card-body p-2">
-				  <div class="card-text-answer">
-					  ${currentAnswerText}
-				  </div>
-				  <div class="hateful-watermark">
-				  👑 Winner
-				   </div>
-				   
-			   </div>
-			 </div>
+		answersInsert += `
+		<div class="card game-card answer-card">
+		<div class="card-body game-card-body p-2">
+			<div class="card-text-answer">
+				${currentAnswerText}
+			</div>
+			<div class="hateful-watermark">
+			👑 Winner
+			</div>
 			
-			`
-	
-		}
-	
-		answersInsert += "</div>";
-	
-		socket.emit('print-winners', answersInsert);
-	
-	
-	}
-
-
-async function startTimer(io, socket, timerLength = null, action = null){
-
-	socket.emit('times-up');
-
-	//select timer length, timerstart from game table where game id = socket game id
-	let queryValues = ["timer_start", "timer_length", "games", "id", socket.gameID];
-	const mysqlGameTimer = await db.query("SELECT ??, ?? FROM ?? WHERE ?? = ?", queryValues);
-
-	console.log("DEBUG: timer_start:" + mysqlGameTimer[0].timer_start + "timer_length:" + mysqlGameTimer[0].timer_length + "-");
-
-	//if timer start + timer length is in past or timer start is null, timer expired -- insert (update) timer
-	const endOfTimer = parseInt(mysqlGameTimer[0].timer_start) + parseInt(mysqlGameTimer[0].timer_length);
-	const timeLeftOnTimer = endOfTimer - (Date.now()/1000);
-	
-	console.log("timeLeftOnTimer:" + timeLeftOnTimer);
-
-	if(!(mysqlGameTimer[0].timer_start == null || isNaN(endOfTimer) || timeLeftOnTimer <= 0)){
-		//endOfTimer should be a valid time stamp.
-		//timer is still current -> (timerstart + timerlength) - current time = time left on timer
-		//emit start timer with time left on timer
-		socket.emit('start-timer', timeLeftOnTimer);
-
-	} else {
-		//Timer hasn't been set or is a dodgy value.
-
-		//If this user already has a game timer, delete it.
-		clearTimeout(io.in(socket.gameID).gameTimer);
-		io.in(socket.gameID).gameTimer = null
-
-		//Create the timer
-		queryValues = ["games", "timer_start", (Date.now()/1000), "timer_length", timerLength, "id", socket.gameID];
-		db.query("UPDATE ?? SET ?? = ?, ?? = ? WHERE ?? = ? ", queryValues);
-
-		socket.emit('start-timer', timerLength);
-
-		//Create a new timer
-		io.in(socket.gameID).gameTimer = setTimeout((io, socket, action) => {
-			console.log("GAME TIMER GONE OFF");
-			io.in(socket.gameID).emit('times-up');
-
-			if(action !== null){
-				action(io, socket);
-			}
-			io.in(socket.gameID).gameTimer = null
-			//=5 secs to help everyone sync properly.
-		}, ((timerLength + 5) * 1000), io, socket, action);
+		</div>
+		</div>
+		
+		`
 
 	}
+
+	answersInsert += "</div>";
+
+	socket.emit('print-winners', answersInsert);
+
 
 }
-
 
 
 
@@ -1947,7 +1877,7 @@ async function newMaster(io, socket, newMaster = null, newHost = false){
 		// const oldMasterState = await db.select("state", "players", "id", oldMaster);
 		//State should be overwritten in when next game state is loaded.
 		// await updatePlayerStates(socket, "disconnected-or-timeout");
-		await player.updateState(socket, "idle", true);
+		await player.updateState(socket, "idle");
 
 		//Change masters
 		await db.update("players", "ismaster", 0, "id", oldMaster);
@@ -1986,12 +1916,12 @@ async function proceedWithMissingAnswers(io, socket){
 
 	if(playerAnswers.length == 0){
 		//Reset timer if nobody answered
-		client.updateState(io, socket);
+		client.downloadState(io, socket);
 	} else {
 		//Continue with at least one answer if there is one.
 		// updatePlayerStates(socket, "master-needs-answers", "player-waiting-for-results");
 		await game.updateState(io, socket, "picking-winner");
-		client.updateState(io, socket);
+		client.downloadState(io, socket);
 	}
 }
 
@@ -2009,187 +1939,13 @@ async function startNewRound(io, socket){
 
 	//start new round
 	game.start(io, socket, newMasterID);
-
+	client.refresh(io, socket, gameID);
 
 }
 
 async function showLoader(io, socket){
 	io.in(socket.gameID).emit('show-loader');
 }
-
-// async function 	ensureCorrectStates(io, socket){
-
-// 	let currentUserStateResult = await db.select("state", "players", "id", socket.userID);
-// 	const currentUserState = currentUserStateResult[0].state;
-
-// 	//if users state is "player-has-answered" its most likely correct. skip this function.
-// 	//there is also no simple way to correct this state.
-
-// 	switch (currentUserState) {
-// 		case "player-has-answered":
-// 			return currentUserState;
-// 		case "overflow-player":
-// 			return currentUserState;
-// 		case "new-round":
-// 			//Make sure everyone has no-state set for next round.
-// 			//Now that everyone has apart from master has this state, when next players go through this function
-// 			//they will exit out the function as "new-round" states are not accounted for.
-// 			await updatePlayerStates(socket, "new-round", "no-state")
-// 			return currentUserState;
-// 		default:
-// 			break;
-// 	}
-
-
-// 	//Select everyone's state in this game , out of those connected.
-// 	let queryValues = ["state", "players", "game_id", socket.gameID, "connected", 1];
-// 	const playerStates = await db.query("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ?", queryValues);
-
-// 	//case statement - change each state to a number
-// 	let stateNumbers = [];
-// 	for (let index = 0; index < playerStates.length; index++) {
-// 		switch (userState) {
-// 			//STEP 1 - Master Picking Question whilst players wait
-// 			case "player-waiting-for-question":
-// 				stateNumbers.push(1000);
-// 				break;
-// 			case "master-needs-questions":
-// 				stateNumbers.push(1000);
-// 				break;
-// 			//STEP 2 - Players picking questions whilst master waits
-// 			case "master-waiting-for-answers":
-// 				stateNumbers.push(2000);
-// 				break;
-// 			case "player-needs-answers":
-// 				stateNumbers.push(2000);
-// 				break;
-// 			//STEP 2.5 - Player has picked question
-// 			case "player-has-answered":
-// 				stateNumbers.push(2000);
-// 				break;
-// 			//STEP 3 - Master picking answers chosen whilst players wait
-// 			case "master-needs-answers":
-// 				stateNumbers.push(3000);
-// 				break;
-// 			case "player-waiting-for-results":
-// 				stateNumbers.push(3000);
-// 				break;
-// 			//STEP 4 - Everyone gets to see the results
-// 			case "master-winner-chosen":
-// 				stateNumbers.push(4000);
-// 				break;
-// 			case "player-winner-chosen":
-// 				stateNumbers.push(4000);
-// 				break;
-// 			//STEP 5 - A new round is set to begin.
-// 			// case "new-round":
-// 			// 	stateNumbers.push(5000);
-// 			// 	break;
-// 			default:
-// 				// alertSocket(socket, "Please refresh the page. Something went wrong.");
-// 				console.log("At Ensure Correct States - A player had no relevant states");
-// 				//Set the user's state to no-state?
-// 				break;
-// 		}
-// 	}
-
-// 	//MODE average numbers - thats the "average state" - the most often occuring number is probably the correct state.
-// 	const modeState = modeArray(stateNumbers);
-
-// 	if(modeState === null){
-// 		console.log("UNABLE TO FIND MOST LIKELY STATE - ARRAY EMPTY");
-// 		return currentUserState;
-// 	}
-
-// 	if(modeState.length > 1){
-// 		console.log("UNABLE TO FIND MOST LIKELY STATE - TOO MANY MODES");
-// 		return currentUserState;
-// 	}
-
-// 	//round the average (DOWN?) - test with rounding down to ensure not skipping steps, or just round to the nearest next state.
-// 	let roundedModeState = Math.round(modeState/1000)*1000
-
-// 	//if user is master, leave rounded to nearest 1000
-// 	let isMaster = await db.select("ismaster", "players", "id", socket.userID);
-// 	isMaster = isMaster[0].ismaster;		
-// 	if (isMaster != 1){
-// 		roundedModeState += 25;
-// 	}
-
-// 	//case statement for each number to each corresponding state
-// 	let approximatedState;
-// 	switch (roundedModeState) {
-// 		//STEP 1
-// 		case 1025:
-// 			approximatedState = "player-waiting-for-question";
-// 			break;
-// 		case 1000:
-// 			approximatedState = "master-needs-questions";
-// 			break;
-// 		//STEP 2
-// 		case 2000:
-// 			approximatedState = "master-waiting-for-answers";
-// 			break;
-// 		case 2025:
-// 			approximatedState = "player-needs-answers";
-// 			break;
-// 		//STEP 3
-// 		case 3000:
-// 			approximatedState = "master-needs-answers";
-// 			break;
-// 		case 3025:
-// 			approximatedState = "player-waiting-for-results";
-// 			break;
-// 		//STEP 4
-// 		case 4000:
-// 			stateNumberTotal += 4000;
-// 			approximatedState = "master-winner-chosen";
-// 			break;
-// 		case 4025:
-// 			approximatedState = "player-winner-chosen";
-// 			break;
-// 		// case 5000:
-// 		// 	stateNumberTotal += 5000;
-// 		// 	approximatedState = "new-round";
-// 		// 	break;
-// 		default:
-// 			console.log("ROUNDED MODE STATE DID NOT EQUAL ANYTHING USEFUL");
-// 			return currentUserState;
-// 	}
-// 	//assign this user's state accordingly
-// 	await db.update("players", "state", approximatedState, "id", socket.userID);
-
-// 	return approximatedState;
-// }
-
-// function modeArray(array) {
-// 	//Returns highest occuring ELEMENT VALUE in an array as an array
-// 	//If there is a tie, an array of all highest occuring elements are returned.
-
-// 	if (array.length == 0) return null;
-	
-// 	var modeMap = {},
-// 	  maxCount = 1,
-// 	  modes = [];
-  
-// 	for (var i = 0; i < array.length; i++) {
-// 	  var el = array[i];
-  
-// 	  if (modeMap[el] == null) modeMap[el] = 1;
-// 	  else modeMap[el]++;
-  
-// 	  if (modeMap[el] > maxCount) {
-// 		modes = [el];
-// 		maxCount = modeMap[el];
-// 	  } else if (modeMap[el] == maxCount) {
-// 		modes.push(el);
-// 		maxCount = modeMap[el];
-// 	  }
-// 	}
-
-// 	return modes;
-//   }
-
 
 async function ensureHostAndMaster(io, socket){
 
