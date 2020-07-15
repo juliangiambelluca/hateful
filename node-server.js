@@ -1449,9 +1449,9 @@ async function processConfirmedWinner(socket, winnerID) {
 	}	
 
 	winnerAnswers = winnerAnswers.concat(winnerRoasters);
-	console.log("winner answers" + JSON.stringify(winnerAnswers));
+	log.debug("winner answers" + JSON.stringify(winnerAnswers));
 
-	console.log("offeredanswers===" + offeredAnswers);
+	
 
 
 	//Score answer
