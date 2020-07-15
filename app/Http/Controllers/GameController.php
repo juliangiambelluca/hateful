@@ -126,7 +126,7 @@ class GameController extends Controller
             'fullname' => $inputFullname,
             'session' => $newSessionToken,
             'connected' => false,
-            'state' => 'no-state',
+            'state' => 'active',
             'ismaster' => 1,
             'ishost' => 1,
             'score' => 0

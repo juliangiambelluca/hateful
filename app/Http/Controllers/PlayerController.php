@@ -58,7 +58,7 @@ class PlayerController extends Controller
                     'fullname' => $inputFullname,
                     'session' => $newSessionToken,
                     'connected' => false,
-                    'state' => 'no-state',
+                    'state' => 'active',
                     'ismaster' => 0,
                     'ishost' => 0,
                     'score' => 0
