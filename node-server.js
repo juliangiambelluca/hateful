@@ -70,7 +70,7 @@ const hatefulConfig = {
 	});
 
 	// Setup MySQL
-	const dbConfig = require("./db_config.json");
+	const dbConfig = require("./.db_config.json");
 	const mysql = require('mysql');
 	const { Console } = require('console');
 	const { off } = require('process');
