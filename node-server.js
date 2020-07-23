@@ -475,8 +475,14 @@ const client = {
 const game = {
 	// Game specific logic
 
-	/*  State decisions made here */
+	getLatestRound: async function (socket){
+		const queryValues = ["id", "question_id", "rounds", "game_id", socket.gameID, "id"];
+		const latestRound = await db.query("SELECT ??, ?? FROM ?? WHERE ?? = ? ORDER BY ?? DESC LIMIT 1", queryValues);
+		log.stringify(latestRound, "Latest round at getLatest Round")
+		return latestRound;
+	},
 
+	/*  State decisions made here */
 	processState: async function (io, socket){
 		if(socket.userID === null){
 			alertSocket(socket, "Please refresh the page, something went wrong.");
@@ -535,7 +541,8 @@ const game = {
 				//Change "answered" user states to active again
 				//If they haven't answered then their state would still be active.
 				if(userState === "answered"){
-					player.updateState(socket, "active");
+					await player.updateState(socket, "active");
+					client.requestState(io, socket);
 				}
 
 				//if master times out, change master - and if they're host, change host too.
@@ -615,8 +622,8 @@ const game = {
 		}
 
 	},
-
 	/*  Good stuff above */
+
 	updateState: async function (io, socket, stateName){
 		await db.update("games", "state", stateName, "id", socket.gameID);
 		this.clearTimer(io, socket);
@@ -726,6 +733,9 @@ const game = {
 		queryValues = ["id", "players", "game_id", socket.gameID, "connected", 1, "ismaster", 0, "state", "answered"];
 		const playersAnswered = await db.query("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? AND ?? = ?", queryValues);
 	
+		log.stringify(playersConnected, "playersCOnnected at EveryoneAnswered");
+		log.stringify(playersAnswered, "playersAnsweres");
+
 		//If everyone answered, return true
 		if(playersConnected.length === playersAnswered.length){
 			return true;
@@ -843,6 +853,59 @@ const cards = {
 	
 		}
 		
+	},
+
+	scoreAnswers: async function (socket, answerIDS, latestRound) {
+
+		//Select all offered answers data with real score against the current question
+		let queryValues = [latestRound[0].question_id, latestRound[0].id, socket.userID];
+		const offeredAnswersWithRealScore = await db.query("SELECT answers.id, question_answer.score FROM answers, question_answer, round_answer WHERE question_answer.answer_id = answers.id AND question_answer.question_id = ? AND answers.id = round_answer.answer_id AND round_answer.round_id = ? AND round_answer.player_id = ?", queryValues);
+	
+		let offeredAnswers;
+		//If answer(s) have a real score against the given question use those, otherwise, get their default scores (1000 points.)
+		if (offeredAnswersWithRealScore.length !== 0){
+			offeredAnswers = offeredAnswersWithRealScore;
+		} else {
+			queryValues = [latestRound[0].id, socket.userID];
+			offeredAnswers = await db.query("SELECT answers.id, answers.score FROM answers, round_answer WHERE answers.id = round_answer.answer_id AND round_answer.round_id = ? AND round_answer.player_id = ?", queryValues);
+		}
+	
+		for (let i = 0; i < answerIDS.length; i++) {
+			if(!(answerIDS[i].includes("roaster"))){
+	
+				/* SCORE ANSWER */
+				
+				//Select winning question data
+				//Check if answer has a score against the question. if so, use question answer score
+				queryValues = [answerIDS[i], latestRound[0].question_id];
+				const questionAnswerScore = await db.query("SELECT answers.id, question_answer.score FROM answers, question_answer WHERE answers.id = ? AND question_answer.answer_id = answers.id AND question_answer.question_id = ? ;", queryValues);
+	
+				let chosenAnswers;
+				if (questionAnswerScore.length !== 0){
+					chosenAnswers = questionAnswerScore;
+				} else {
+					queryValues = [answerIDS[i]];
+					chosenAnswers = await db.query("SELECT answers.id, answers.score FROM answers WHERE answers.id = ?;", queryValues);
+				}
+	
+				cards.score(chosenAnswers, offeredAnswers, "question_answer", latestRound[0].question_id);
+			}
+		}//endfor
+	},
+
+	shortlistAnswers: async function (socket, answerIDS, latestRound) {
+		for (let i = 0; i < answerIDS.length; i++) {
+			if(answerIDS[i].includes("roaster")){
+				/* SHORTLIST ROASTER ANSWER */
+				const playerRoasterID = answerIDS[i].replace('roaster','');
+				const queryValues = ["round_answer", "shortlisted", 1, "order", i, "round_id", latestRound[0].id, "player_id", socket.userID, "player_roaster_id", playerRoasterID];
+				await db.query("UPDATE ?? SET ?? = ?, ?? = ? WHERE ?? = ? AND ?? = ? AND ?? = ? ", queryValues);
+			} else {
+				/* SHORTLIST ANSWER */
+				const queryValues = ["round_answer", "shortlisted", 1, "order", i, "round_id", latestRound[0].id, "player_id", socket.userID, "answer_id", answerIDS[i]];
+				await db.query("UPDATE ?? SET ?? = ?, ?? = ? WHERE ?? = ? AND ?? = ? AND ?? = ? ", queryValues);
+			}
+		}
 	},
 
 	getNewAnswers: async function (socket, latestRound){
@@ -1066,13 +1129,15 @@ const master = {
 
 		if (socket.userID == null) {
 			log.debug("Returned out of masterpickedquestion... no user session.")
-			return;
+			return false;
 		}
 
 		if(sanitise.masterQuestion(dirtyQuestionID)===false){
 			log.error("Master question did not pass sanitisation")
 			return false;
 		}
+		const questionID = dirtyQuestionID;
+
 		log.debug("MADE IT THROUGHT PICK QUESTION CHECKS *****************************")
 
 		await db.update("rounds", "question_id", questionID, "game_id", socket.gameID)
@@ -1193,20 +1258,28 @@ const player = {
 	},
 	
 	pickAnswer: async function (io, socket, dirtyAnswerIDS){
-
-		/* Sanitise Data */
+		/* Shortlists the answer(s) and updates everyone that a player has answered */
+	
 		if(sanitise.playerAnswer(dirtyAnswerIDS)===false){
 			log.error("AnswerID from userID " + socket.userID + " dirty. Answer not counted.")
 			return false;
 		}
-
 		const answerIDS = dirtyAnswerIDS;
 
-		await shortlistAndScoreAnswers(socket, answerIDS);
+		const latestRound = await game.getLatestRound(socket);
+		log.stringify(latestRound, "Latest round at pickAnswer");
+
+		await cards.shortlistAnswers(socket, answerIDS, latestRound);
+		cards.scoreAnswers(socket, answerIDS, latestRound);
 
 		const cardBacksData = await cards.getCardBacks(socket, answerIDS.length);
 		client.showCardBacks(io, socket, ...cardBacksData);
-	}
+
+	},
+
+
+
+
 }
 
 
@@ -1397,60 +1470,7 @@ function disconnectedOrTimeout(socket){
 	}
 }
 
-async function shortlistAndScoreAnswers(socket, answerIDS) {
 
-	let queryValues = ["id", "question_id", "rounds", "game_id", socket.gameID, "id"];
-	const latestRound = await db.query("SELECT ??, ?? FROM ?? WHERE ?? = ? ORDER BY ?? DESC LIMIT 1", queryValues);
-
-	//Select all offered answers data with real score against the current question
-	queryValues = [latestRound[0].question_id, latestRound[0].id, socket.userID];
-	const offeredAnswersWithRealScore = await db.query("SELECT answers.id, question_answer.score FROM answers, question_answer, round_answer WHERE question_answer.answer_id = answers.id AND question_answer.question_id = ? AND answers.id = round_answer.answer_id AND round_answer.round_id = ? AND round_answer.player_id = ?", queryValues);
-
-	let offeredAnswers;
-	//If answer(s) have a real score against the given question use those, otherwise, get their default scores (1000 points.)
-	if (offeredAnswersWithRealScore.length !== 0){
-		offeredAnswers = offeredAnswersWithRealScore;
-	} else {
-		queryValues = [latestRound[0].id, socket.userID];
-		offeredAnswers = await db.query("SELECT answers.id, answers.score FROM answers, round_answer WHERE answers.id = round_answer.answer_id AND round_answer.round_id = ? AND round_answer.player_id = ?", queryValues);
-	}
-
-	for (let i = 0; i < answerIDS.length; i++) {
-		if(answerIDS[i].includes("roaster")){
-
-			/* SHORTLIST ROASTER ANSWER */
-			const playerRoasterID = answerIDS[i].replace('roaster','');
-			queryValues = ["round_answer", "shortlisted", 1, "order", i, "round_id", latestRound[0].id, "player_id", socket.userID, "player_roaster_id", playerRoasterID];
-			await db.query("UPDATE ?? SET ?? = ?, ?? = ? WHERE ?? = ? AND ?? = ? AND ?? = ? ", queryValues);
-			
-			//No need to score it
-
-		} else {
-
-		  
-			/* SHORTLIST ANSWER */
-			queryValues = ["round_answer", "shortlisted", 1, "order", i, "round_id", latestRound[0].id, "player_id", socket.userID, "answer_id", answerIDS[i]];
-			await db.query("UPDATE ?? SET ?? = ?, ?? = ? WHERE ?? = ? AND ?? = ? AND ?? = ? ", queryValues);
-			 
-			/* SCORE ANSWER */
-			
-			//Select winning question data
-			//Check if answer has a score against the question. if so, use question answer score
-			queryValues = [answerIDS[i], latestRound[0].question_id];
-			const questionAnswerScore = await db.query("SELECT answers.id, question_answer.score FROM answers, question_answer WHERE answers.id = ? AND question_answer.answer_id = answers.id AND question_answer.question_id = ? ;", queryValues);
-
-			let chosenAnswers;
-			if (questionAnswerScore.length !== 0){
-				chosenAnswers = questionAnswerScore;
-			} else {
-				queryValues = [answerIDS[i]];
-				chosenAnswers = await db.query("SELECT answers.id, answers.score FROM answers WHERE answers.id = ?;", queryValues);
-			}
-
-			cards.score(chosenAnswers, offeredAnswers, "question_answer", latestRound[0].question_id);
-		}
-	}//endfor
-}
 
 async function processConfirmedWinner(socket, winnerID) {
 	log.debug("processConfirmedWinner, winnerID:" + JSON.stringify(winnerID));
@@ -2079,7 +2099,7 @@ io.on('connection', (socket) => {
 		//Player state is set back to "active" as soon as they land on the "picking-winner" state.
 		player.pickAnswer(io, socket, dirtyAnswerIDS);
 
-		if(game.everyoneAnswered(io, socket)){
+		if(await game.everyoneAnswered(socket)){
 			await game.updateState(io, socket, "picking-winner");
 			client.requestState(io, socket);
 		}
