@@ -23,7 +23,7 @@
  */
 
 
-"use strict"; //Comment out for production
+"use strict"; 
 
 //Configuration
 const hatefulConfig = {
@@ -58,6 +58,7 @@ const hatefulConfig = {
 };
 
 /* SETUP AND IMPORT */
+	// Setup File system
 	const fs = require('fs');
 	const path = require("path");
 
@@ -77,9 +78,13 @@ const hatefulConfig = {
 	const { setWith, shuffle } = require('lodash');
 	const { start } = require('repl');
 	const pool = mysql.createPool(dbConfig);  
+/* --- */
 
-// Custom DB Access helper functions
+
 const db = {
+	// Custom DB Access helper functions
+
+
 	select: async function (select, from, where, equals) {
 		let selectQuery = 'SELECT ?? FROM ?? WHERE ?? = ?';    
 		let query = mysql.format(selectQuery,[select,from,where,equals]);
@@ -122,7 +127,10 @@ const db = {
 			}); 
 		} 
 }
+
 const log = {
+	// Custom console logging & debugging functions
+
 	critical: function(string){
 		console.log('\x1b[107;31m%s\x1b[0m', string);
 	},
@@ -152,11 +160,14 @@ const log = {
 		console.log('\x1b[42;97m%s\x1b[0m', JSON.stringify(parameter));
 	}
 }
-//Store Disconnect timeouts & their users.
+// Store Disconnect timeouts & their users. - Turn this into an object
 let timeouts = [];
 let timeoutUserIDPivot = [];
 
 const files = {
+	// File accessing functions
+
+
 	get: function (file, encoding = "utf8"){
 		try {
 			var data = fs.readFileSync(path.resolve(__dirname, file), encoding);
@@ -169,6 +180,7 @@ const files = {
 }
 
 const client = {
+	// Methods to deliver data to the client
 
 
 
@@ -461,6 +473,7 @@ const client = {
 }
 
 const game = {
+	// Game specific logic
 
 	/*  State decisions made here */
 
@@ -724,6 +737,9 @@ const game = {
 }
 
 const sanitise = {
+	// Input sanitising functions
+
+
 	playerAnswer: function (dirtyAnswerIDS){
 		if(dirtyAnswerIDS.length === 2){
 			dirtyAnswerIDS[0] = String(dirtyAnswerIDS[0]);
@@ -741,10 +757,29 @@ const sanitise = {
 		}
 		//Made it through checks. input is sanitised.
 		return true;
+	},
+
+	masterQuestion: function (dirtyQuestionID) {
+		let questionID = 0;
+		//If question id has more than 10 digits it's definetely invalid!
+		if (dirtyQuestionID.toString().length < 10){
+				questionID = parseInt(dirtyQuestionID);
+				if (questionID === NaN){
+					log.error("Question ID NAN");
+					return false;
+				}
+				log.info("Set Clean Question ID");
+		} else {
+			log.error("Dirty Question ID too long!")
+			return false;
+		}
+		return true;
 	}
 }
 
 const cards = {
+	// Card related data & methods
+
 
 	score: async function (winnerCard, offeredCards, table, questionID = null) {
 		let offeredQuestionsTotalScore = 0;
@@ -1002,11 +1037,11 @@ const cards = {
 }
 
 const master = {	
+	// Question master invoked methods & data
+
 	check: async function (socket){
-		//make sure theyre not master
+		/* Check if they are question master */ 
 		let isMaster = await db.select("ismaster", "players", "id", socket.userID);
-		//Returns array of objects
-		//First row, ismaster attribute.
 		isMaster = isMaster[0].ismaster;
 		
 		if(isMaster == 1){
@@ -1017,47 +1052,35 @@ const master = {
 	},
 
 	updateState: async function (socket, masterState){
+		/* Update the state of the master */
+
 		//Find the master for this game
 		const queryValues = ["id", "players", "game_id", socket.gameID, "connected", 1, "ismaster", 1 ];
 		const playersInGame = await db.query("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ?", queryValues);
 		
 		await db.update("players", "state", masterState, "id", playersInGame[0].id);
-
-		// //reset the timer
-		// resetTimer(io, socket);
 	},
 
 	pickQuestion: async function (io, socket, dirtyQuestionID){
-		
+		/* Set the chosen question as the round's question & score it */
+
 		if (socket.userID == null) {
 			log.debug("Returned out of masterpickedquestion... no user session.")
 			return;
 		}
 
-		/* SANITISATION INPUTS */
-		let questionID = 0;
-		//If question id has more than 10 digits it's definetely invalid!
-		if (dirtyQuestionID.toString().length < 10){
-				questionID = parseInt(dirtyQuestionID);
-				if (questionID === NaN){
-					log.error("Question ID NAN");
-					return;
-				}
-				log.info("Set Clean Question ID");
-		} else {
-			log.error("Dirty Question ID too long!")
-			return;
+		if(sanitise.masterQuestion(dirtyQuestionID)===false){
+			log.error("Master question did not pass sanitisation")
+			return false;
 		}
-		/* SANITISATION COMPLETE */
 		log.debug("MADE IT THROUGHT PICK QUESTION CHECKS *****************************")
-		//Update round with chosen question
+
 		await db.update("rounds", "question_id", questionID, "game_id", socket.gameID)
 		
 		scoreQuestion(socket, questionID);
 	},
 
 	pickWinner: async function (io, socket, dirtyWinnerID){
-		// console.log("master-confirmed-winner");
 	
 		if(dirtyWinnerID.length > 10){
 				return;
@@ -1088,6 +1111,9 @@ const master = {
 }
 
 const player = {
+	// Player invoked methods & data
+
+
 	updateState: async function (socket, state = null){
 		await db.update("players", "state", state, "id", socket.userID);
 	},
@@ -1323,11 +1349,6 @@ function alertSocket(socket, message){
 		socket.emit('alert-socket', message);
 	}, 3000, socket);
 }
-
-//Game states logic
-
-
-
 
 
 async function scoreQuestion(socket, questionID){
@@ -1801,8 +1822,6 @@ async function printWinnerOnTop(socket, playerAnswers){
 
 
 }
-
-
 
 async function newMaster(io, socket, newMaster = null, newHost = false){
 	const originalNewMaster = newMaster;
