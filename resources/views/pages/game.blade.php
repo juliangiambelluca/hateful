@@ -80,19 +80,19 @@ play hateful
 		let isOverflowPlayer = false;
 		socket.on('overflow-player', function(){
 			isOverflowPlayer = true;
-			$("#game-state-display").css("opacity", "1");
-			$("#game-state-display").css("filter", "blur(0px)");
+			// $("#game-state-display").css("opacity", "1");
+			// $("#game-state-display").css("filter", "blur(0px)");
 
-			$("#game-state-display").html(`
-			<div class="row"><div class="col-12"><div class="spinner-border m-4" style="float: left;" role="status">
-						<span class="sr-only">Loading...</span>
-					</div>
-					<h1 class="mt-3" style="display:inline-block; position: absolute;">There are too many players</h1></div></div>
+			// $("#game-state-display").html(`
+			// <div class="row"><div class="col-12"><div class="spinner-border m-4" style="float: left;" role="status">
+			// 			<span class="sr-only">Loading...</span>
+			// 		</div>
+			// 		<h1 class="mt-3" style="display:inline-block; position: absolute;">There are too many players</h1></div></div>
 
 					
-					<div class="row"><div class="col-12"><h3>You have been placed in queue. Waiting for other players to leave.</h3></div></div>
+			// 		<div class="row"><div class="col-12"><h3>You have been placed in queue. Waiting for other players to leave.</h3></div></div>
 					
-			`);
+			// `);
 		});
 
 		socket.on('space-available', function(message){
@@ -111,6 +111,7 @@ play hateful
 
 		socket.on('disableGameStart', function(){
 			window.location.href = '/lobby';
+			console.log("EXECUTED WINDOW LOBBY FROM DISABLE GAME START");
 		});
 		
 
