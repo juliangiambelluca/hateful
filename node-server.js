@@ -197,6 +197,14 @@ const client = {
 		io.in(socket.gameID).staggerDelay += hatefulConfig.staggerDelay;	
 	},
 
+	emitPlayersInGame: async function (io, socket){
+		//In lobby, connected users are shown. During gameplay this acts as the leaderboard too.
+		const queryValues = ["id", "fullname", "score", "ismaster", "players", "game_id", socket.gameID, "connected", 1];
+		const connectedPlayers = await db.query("SELECT ??, ??, ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? ORDER BY score DESC", queryValues);
+	
+		io.in(socket.gameID).emit('playersInLobby', connectedPlayers);
+	},
+
 	join: async function (io, socket, dirtyUserID){
 		//Never use the dirty user ID in SQL queries!
 			//Sanitise Input
@@ -256,10 +264,16 @@ const client = {
 					io.in(gameID).emit('joinRoomSuccess');
 
 					//Let everyone in room know the updated connected users list.
-					emitPlayersInLobby(io, socket.gameID);
+					client.emitPlayersInGame(io, socket);
 
 					//Player will get flagged as disconnected if there's too many players.
-					player.count(io, socket); 
+					
+					await master.ensureExists(io, socket);
+					
+					
+					await player.ensureCount(io, socket); 
+		client.emitPlayersInGame(io, socket);
+
 					client.requestState(io, socket, true);
 
 			}, io.in(socket.gameID).staggerDelay, io, socket);
@@ -294,6 +308,16 @@ const client = {
 		// setTimeout((socket, io) => {
 		io.in(socket.gameID).emit('update-your-state');
 		// }, hatefulConfig.dustSettleDelay, socket, io);
+	},
+	
+	makeOverflow: function(socket){
+		socket.emit("overflow-player");
+		client.showOverflowScreen;
+	},
+
+	showOverflowScreen: function(socket){
+		let screen = files.get("game-states/overflow-player.html");
+		socket.emit('load-new-state', screen);
 	},
 	
 	showAnswers: async function (socket, playerAnswers){
@@ -493,7 +517,7 @@ const game = {
 		let isMaster = await db.select("ismaster", "players", "id", socket.userID);
 		isMaster = isMaster[0].ismaster;		
 
-		ensureHostAndMaster(io, socket);
+		await master.ensureExists(io, socket);
 
 		let userStateResult = await db.select("state", "players", "id", socket.userID);
 		let userState = userStateResult[0].state;
@@ -604,7 +628,7 @@ const game = {
 				break;
 		
 			case "overflow":
-				socket.emit("overflow-player");
+				client.showOverflowScreen(socket);
 				break;
 		
 			case "answered":
@@ -1124,6 +1148,69 @@ const master = {
 		await db.update("players", "state", masterState, "id", playersInGame[0].id);
 	},
 
+	ensureExists: async function (io, socket){
+
+		//Select masters flagged CONNECTED
+		let queryValues = ["id", "players", "game_id", socket.gameID, "connected", 1, "ismaster", 1];
+		const connectedMasters = await db.query("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ?;", queryValues);
+	
+		//Select hosts flagged CONNECTED
+		queryValues = ["id", "players", "game_id", socket.gameID, "connected", 1, "ishost", 1];
+		const connectedHosts = await db.query("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ?;", queryValues);
+	
+	
+		if(connectedMasters.length === 0 && connectedHosts.length === 0){
+			//clear all hosts and masters
+			await db.update("players", "ishost", 0, "game_id", socket.gameID);
+			await db.update("players", "ismaster", 0, "game_id", socket.gameID);
+			//there's nobody in charge
+	
+			//find a new host&master
+			 //Find appropiate new host/master
+			 queryValues = ["id", "fullname", "players", "game_id", socket.gameID, "connected", 1, "ishost", 0, "ismaster", 0, "created_at"];
+			 playersLeft = await db.query("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? AND ?? = ? ORDER BY ?? DESC", queryValues);
+			 
+			 if(playersLeft.length == 0){
+				 return;
+			 } else {
+			
+				 await db.update("players", "ishost", 1, "id", playersLeft[0].id);
+				 await db.update("players", "ismaster", 1, "id", playersLeft[0].id);
+				 // console.log('\x1b[42;97m%s\x1b[0m', "***Everyone left!***");
+				 
+				 log.info(socket.userID + " lost Host privilege to " + playersLeft[0].id);
+	
+				 const newHost = [playersLeft[0].id, playersLeft[0].fullname];
+				 io.in(socket.gameID).emit('newHost', newHost);
+			 }
+	
+		} else if (connectedMasters.length === 0){
+			//clear all hosts and masters
+			await db.update("players", "ishost", 0, "game_id", socket.gameID);
+			await db.update("players", "ismaster", 0, "game_id", socket.gameID);
+			//we just need a new master
+			//make host the master
+			//connectedHosts[0].id should be the new master
+			await db.update("players", "ishost", 1, "id", connectedHosts[0].id);
+			await db.update("players", "ismaster", 1, "id", connectedHosts[0].id);
+	
+	
+		} else if (connectedHosts.length === 0){
+			//clear all hosts and masters
+			await db.update("players", "ishost", 0, "game_id", socket.gameID);
+			await db.update("players", "ismaster", 0, "game_id", socket.gameID);
+			//we just need a new host
+			//make master the host
+			//connectedMasters[0].id should be the new host
+			await db.update("players", "ishost", 1, "id", connectedMasters[0].id);
+			await db.update("players", "ismaster", 1, "id", connectedMasters[0].id);
+	
+		} else {
+			//everything seems to be ok...
+			return;
+		}
+	},
+
 	pickQuestion: async function (io, socket, dirtyQuestionID){
 		/* Set the chosen question as the round's question & score it */
 
@@ -1183,77 +1270,72 @@ const player = {
 		await db.update("players", "state", state, "id", socket.userID);
 	},
 
-	count: async function (io, socket){
-		//If current player is host or master do not disconnect them.
-		let isMaster = await db.select("ismaster", "players", "id", socket.userID);
-		let isHost = await db.select("ishost", "players", "id", socket.userID);
-	
-	
-		let queryValues = ["id", "players", "game_id", socket.gameID, "ishost", 1];
-		let theHostID = await db.query("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ?", queryValues);
-	
-		if (typeof theHostID[0].id == 'undefined' || theHostID[0].id === null) { 
-			log.error("checkPlayerCount could not find the Host ID");
-			alertSocket(socket, "Please refresh, something went wrong. [checkPlayerCount could not find the Host ID]");
-			return; 
-		} else { 
-			theHostID = theHostID[0].id; 
-		}
-	 
-		isMaster = isMaster[0].ismaster;		
-		isHost = isHost[0].ishost;		
-	
+	flagAsDisconnected: async function (socket){
+		await db.update("players", "connected", 0, "id", socket.userID);
+	},
+
+	ensureCount: async function (io, socket){
+		//Ensure that there is the right amount of players
+		//Deal with overflow players
+		//!!! Make sure that host & master have been ensured before calling this function.
+
+
+		//Get this user's Master & Host status
+		let queryValues = ["ishost", "ismaster", "players", "id", socket.userID];
+		let userPrivileges = await db.query("SELECT ??, ?? FROM ?? WHERE ?? = ?", queryValues);
+		const isMaster = userPrivileges[0].ismaster;
+		const isHost = userPrivileges[0].ishost;
+		
+		//Get a list of users flagged as connected to this game.
 		queryValues = ["id", "players", "game_id", socket.gameID, "connected", 1];
 		const connectedPlayers = await db.query("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ?", queryValues);
-		//Returns array of objects
+
+		//Check for minimum players.
 		if(connectedPlayers.length >= hatefulConfig.minPlayers){
+			//There are more than the minimum amount of connected players, enable game start.
 			io.in(socket.gameID).emit('enableGameStart', theHostID);
-			
 		} else {
-			io.in(socket.gameID).emit('disableGameStart', theHostID);
-			//TODO
-			//^If this gets called during gameplay, it will show the lobby.
+			//There are less than the minimum amount of connected players, DISable game start.
+
 			await db.update("games", "started", 0, "id", socket.gameID);
-			//TODO
-			//^This tells laravel to stay in the lobby
-			// updatePlayerStates(socket, "no-state", "no-state");
+			//Mark game as not ongoing. This tells laravel to stay in the lobby.
+
+			io.in(socket.gameID).emit('disableGameStart', theHostID);
+			//If this gets called during gameplay, it will show the lobby page.
+			
 			await game.updateState(io, socket, "start");
-			//^Clear current round progress. When game gets started again everyone's state will be set to new round states anyway.
+			//Clear current round progress. When game gets started again everyone's state will be set to new round states anyway.
 			//Scores are not affected. Scoreboard will continue when game starts again.
-		
 		}
+
+		//Check for Max Players 
 		if(connectedPlayers.length > hatefulConfig.maxPlayers){
-		
 			//If they are host or master, disconnect someone else.
 			if (isMaster == 1 || isHost == 1){
 				//Find player that is not master or host, the latest one to join.
 				queryValues = ["id", "players", "game_id", socket.gameID, "connected", 1, "ishost", 0, "ismaster", 0, "created_at"];
 				let playersLeft = await db.query("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? AND ?? = ? ORDER BY ?? DESC", queryValues);
 			
-				//disconnect this user to bring connected player count back to normal.
+				//Find overflow user and make them disconnect themselves, to bring connected player count back to allowed range.
 				io.in(socket.gameID).emit('find-overflow-user', playersLeft[0].id);
 				
-				
-			} else {
-				//If not master or host.
+			} else {	//If not master or host.
 	
-				//disconnect this user to bring connected count back to normal.
-				db.update("players", "connected", 0, "id", socket.userID);
-					
-				//Change this one user's state.
-				// updatePlayerStates(socket, null, "overflow-player", true);
+				await player.flagAsDisconnected(socket);
+				//flag user as disconnected to bring connected count back to normal.
+
 				await player.updateState(socket, "overflow");
 				
-				socket.emit("overflow-player");
-				emitPlayersInLobby(io, socket.gameID);
+				client.makeOverflow(socket);
 			}
-	
-			
-		} 
-		if(connectedPlayers.length <= hatefulConfig.maxPlayers){
+		}
+		
+		//Check if there is space available for overflow users
+		if(connectedPlayers.length < hatefulConfig.maxPlayers){
+			log.debug("IN PLAYER COUNT. CONN. PLAYERS IS NOW LESS THAN MAX ========")
+
 			//broadcast there is a space available. first player to reconnect gets it.
 			io.in(socket.gameID).emit('space-available');
-			emitPlayersInLobby(io, socket.gameID);
 		}
 	},
 	
@@ -1296,97 +1378,15 @@ async function disconnectUser(io, socket){
 
     //Create set timeout to flag as disconnected and re-choose host after a few seconds
     const disconnectTimer = setTimeout(async function(io, socket){
-        let queryValues;
-        let playersLeft;
-
-        //Deal with host disconnects
         log.info("disconnectTimer triggered");
 
-        let isHost = await db.select("ishost", "players", "id", socket.userID);
-        isHost = isHost[0].ishost;
-
-        log.info(socket.userID + "'s Host status: '" + isHost + "'");
-
-
-        if (isHost==1){
-            //Find appropiate new host
-            queryValues = ["id", "fullname", "players", "game_id", socket.gameID, "connected", 1, "ishost", 0, "created_at"];
-            playersLeft = await db.query("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? ORDER BY ?? DESC", queryValues);
-            
-            // console.log("Players Left obj: " + JSON.stringify(playersLeft));
+        player.flagAsDisconnected(socket);
         
-            if(playersLeft.length == 0){
-                log.info("***Everyone left!***");
-                //TODO - Delete everything related to this game!
-            } else {
-				// console.log("newHostArr=" + JSON.stringify(newHost))
+		await master.ensureExists(io, socket);
 
-                await db.update("players", "ishost", 0, "id", socket.userID);
-				await db.update("players", "ishost", 1, "id", playersLeft[0].id);
-                // console.log('\x1b[42;97m%s\x1b[0m', "***Everyone left!***");
-				
-                log.info(socket.userID + " lost Host privilege to " + playersLeft[0].id);
-
-                const newHost = [playersLeft[0].id, playersLeft[0].fullname];
-                io.in(socket.gameID).emit('newHost', newHost);
-            }
-        } //End if Host
-        
-
-        //Deal with question master disconnects
-        let isMaster = await db.select("ismaster", "players", "id", socket.userID);
-        isMaster = isMaster[0].ismaster;
-
-       	log.info(socket.userID + "'s Host status: '" + isMaster + "'");
-
-        if (isMaster==1){
-            // console.log("isMaster==1");
-            //Find appropiate new master
-            queryValues = ["id", "fullname", "players", "game_id", socket.gameID, "connected", 1, "ishost", 0, "created_at"];
-            playersLeft = await db.query("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? ORDER BY ?? DESC", queryValues);
-            
-            log.info("Players Left obj: " + JSON.stringify(playersLeft));
-        
-            if(playersLeft.length==0){
-                log.info("Everyone left!***");
-                //Delete everything related to this game!
-            } else {
-                const newMaster = [playersLeft[0].id, playersLeft[0].fullname];
-                // console.log("newMasterArr=" + JSON.stringify(newMaster));
-
-                
-                //Find this master's state.
-                //Give the master no-state.
-                // const oldMasterState = await db.select("state", "players", "id", socket.userID);
-				// updatePlayerStates(socket, "no-state");
-				await master.updateState(socket, "disconnected");
-
-                //Change masters
-				await db.update("players", "ismaster", 0, "id", socket.userID);
-                await db.update("players", "ismaster", 1, "id", playersLeft[0].id);
-			
-                // console.log(userID + " lost Master privilege to " + newMaster[0]);
-                log.info(socket.userID + " lost Master privilege to " + playersLeft[0].id);
-
-                //Give the new master that state
-                //A lil delay to ensure above code has in fact completed.
-                // setTimeout(() => {
-                    // updatePlayerStates(socket, oldMasterState[0].state)
-                io.in(socket.gameID).emit('newMaster', newMaster);
-                // }, 250);
-            }  
-        } //End if Master
-
-
-        //Mark them as disconnected in DB.
-        await db.update("players", "connected", 0, "id", socket.userID);
-        
-        //Update front-end player list.
-        emitPlayersInLobby(io, socket.gameID);
-
-		log.debug("DISCONNECT TIMER Socket before cPC: gID - uID = " + socket.gameID + "," + socket.userID);
-
-        await player.count(io, socket);
+		await player.ensureCount(io, socket);
+		
+		client.emitPlayersInGame(io, socket);
 
         //Clear this timer from the timeouts table
         const timeoutRow = timeoutUserIDPivot.indexOf(socket.userID);
@@ -1395,27 +1395,20 @@ async function disconnectUser(io, socket){
         timeouts.splice(timeoutRow, 1);
 
         delete socket.userID;
-        delete socket.gameID;
-        // socket.handshake.session.save();
+		delete socket.gameID;
+		
         log.info("Session & Disconnect timeout deleted - no longer needed.");
 
     }, hatefulConfig.disconnectTimerLength, io, socket);
-    // Important to pass the user data to the timer function!
+    // Important to pass socket & io to the timer function!
 
     timeouts.push(disconnectTimer);
     timeoutUserIDPivot.push(socket.userID);
     log.info("Timer pushed.");
 
-
 }
 
-async function emitPlayersInLobby(io, gameID){
-		const queryValues = ["id", "fullname", "score", "ismaster", "players", "game_id", gameID, "connected", 1];
-		const connectedPlayers = await db.query("SELECT ??, ??, ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? ORDER BY score DESC", queryValues);
-	
-		io.in(gameID).emit('playersInLobby', connectedPlayers);
 
-}
 
 function alertSocket(socket, message){
 	setTimeout(function (socket) {
@@ -1978,7 +1971,7 @@ async function proceedWithMissingAnswers(io, socket){
 async function scoreWinner(socket, winnerID){
 	const oldScore = await db.select("score", "players", "id", winnerID)
 	await db.update("players", "score", oldScore[0].score + 100, "id", winnerID);
-	emitPlayersInLobby(io, socket.gameID);
+	client.emitPlayersInGame(io, socket);
 }
 
 async function startNewRound(io, socket){
@@ -1997,68 +1990,6 @@ async function showLoader(io, socket){
 	io.in(socket.gameID).emit('show-loader');
 }
 
-async function ensureHostAndMaster(io, socket){
-
-	//Select masters flagged CONNECTED
-	let queryValues = ["id", "players", "game_id", socket.gameID, "connected", 1, "ismaster", 1];
-	const connectedMasters = await db.query("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ?;", queryValues);
-
-	//Select hosts flagged CONNECTED
-    queryValues = ["id", "players", "game_id", socket.gameID, "connected", 1, "ishost", 1];
-	const connectedHosts = await db.query("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ?;", queryValues);
-
-
-	if(connectedMasters.length === 0 && connectedHosts.length === 0){
-		//clear all hosts and masters
-		await db.update("players", "ishost", 0, "game_id", socket.gameID);
-		await db.update("players", "ismaster", 0, "game_id", socket.gameID);
-		//there's nobody in charge
-
-		//find a new host&master
-		 //Find appropiate new host/master
-		 queryValues = ["id", "fullname", "players", "game_id", socket.gameID, "connected", 1, "ishost", 0, "ismaster", 0, "created_at"];
-		 playersLeft = await db.query("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? AND ?? = ? ORDER BY ?? DESC", queryValues);
-		 
-		 if(playersLeft.length == 0){
-			 return;
-		 } else {
-		
-			 await db.update("players", "ishost", 1, "id", playersLeft[0].id);
-			 await db.update("players", "ismaster", 1, "id", playersLeft[0].id);
-			 // console.log('\x1b[42;97m%s\x1b[0m', "***Everyone left!***");
-			 
-			 log.info(socket.userID + " lost Host privilege to " + playersLeft[0].id);
-
-			 const newHost = [playersLeft[0].id, playersLeft[0].fullname];
-			 io.in(socket.gameID).emit('newHost', newHost);
-		 }
-
-	} else if (connectedMasters.length === 0){
-	    //clear all hosts and masters
-		await db.update("players", "ishost", 0, "game_id", socket.gameID);
-		await db.update("players", "ismaster", 0, "game_id", socket.gameID);
-		//we just need a new master
-		//make host the master
-		//connectedHosts[0].id should be the new master
-		await db.update("players", "ishost", 1, "id", connectedHosts[0].id);
-		await db.update("players", "ismaster", 1, "id", connectedHosts[0].id);
-
-
-	} else if (connectedHosts.length === 0){
-		//clear all hosts and masters
-		await db.update("players", "ishost", 0, "game_id", socket.gameID);
-		await db.update("players", "ismaster", 0, "game_id", socket.gameID);
-		//we just need a new host
-		//make master the host
-		//connectedMasters[0].id should be the new host
-		await db.update("players", "ishost", 1, "id", connectedMasters[0].id);
-		await db.update("players", "ismaster", 1, "id", connectedMasters[0].id);
-
-	} else {
-		//everything seems to be ok...
-		return;
-	}
-}
 
 
 
@@ -2111,10 +2042,10 @@ io.on('connection', (socket) => {
 	});
 	
 	socket.on('i-am-overflow', async () => {
-		db.update("players", "connected", 0, "id", socket.userID);
+		await player.flagAsDisconnected(socket);
 		await player.updateState(socket, "overflow");
-		socket.emit("overflow-player");
-		emitPlayersInLobby(io, socket.gameID);
+		client.makeOverflow(socket);
+		client.emitPlayersInGame(io, socket);
 	});
 	
 	socket.on('disconnect', () => {
