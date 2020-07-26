@@ -2,7 +2,7 @@
 /**
  * Copyright (c) 2020, Julian Giambelluca
  * All rights reserved.
- *
+ * 
  * Redistribution and use in source and binary forms, with or without modification, are permitted
  * provided that the following conditions are met:
  *
@@ -31,7 +31,7 @@ const hatefulConfig = {
 	gameTimerLength: 20,	//Length of timer for choosing questions and answers. In seconds. recommended: 60 Seconds
 
 	/* Answer Cards */
-	//One card from answerCards will always be a player name card.
+	//One card from answerCards will always be a player name card -known as a "Roaster Card"-, so users can make fun of their friends.
 	//Bad answers are important to give new/bad answers a chance to gain points. 
 	//If not enough best|good|bad answers are found, random answers will be selected until maxAnswerCards is reached
 	maxAnswerCards: 10,     //The maximum amount of cards to be shown. Excess will be sliced off.
@@ -52,7 +52,8 @@ const hatefulConfig = {
 	staggerDelay: 400, 				//Recommended: 400ms.
 	//How much delay to stagger player's database access by. This is to avoid conflicts when players access the database simultaneously.
 	//For example, at 400ms, the tenth player will have to wait 4 seconds. Important queries this applies to take around 450ms.
-	maxStaggerDelay: this.staggerDelay * this.maxPlayers 	//Maximum delay players will experience.
+	maxStaggerDelay: 3000 	//Maximum delay players will experience.
+	//Should be staggerDelay * maxPlayers
 	//(maxStaggerDelay / staggerDelay) = # of users guaranteed to not experience any conflicts. 
 
 };
@@ -185,16 +186,26 @@ const client = {
 
 
 	stagger: function (io, socket, parameters = null , action){
+		//set staggerDelay if it isnt already.
+		if(typeof(io.in(socket.gameID).staggerDelay)=='undefined'){
+			io.in(socket.gameID).staggerDelay = 10;
+		};
 		//Reset staggering delay if it gets too big
-		if(io.in(socket.gameID).staggerDelay > hatefulConfig.maxStaggerDelay){io.in(socket.gameID).staggerDelay = 0};
+		if(io.in(socket.gameID).staggerDelay > hatefulConfig.maxStaggerDelay){
+			io.in(socket.gameID).staggerDelay = 10;
+		};
 
-		log.info("Get Answer Staggering Delay: " +  io.in(socket.gameID).staggerDelay);
+		log.info("Staggering Delay: " +  io.in(socket.gameID).staggerDelay);
 		//Stagger answer getting to avoid duplicates being offered.
 		setTimeout((action, parameters) => {
 			action(...parameters);
 		}, io.in(socket.gameID).staggerDelay, action, parameters);
 		//add 500ms to stagger delay for next person
 		io.in(socket.gameID).staggerDelay += hatefulConfig.staggerDelay;	
+	},
+
+	resetStaggerDelay: function (io, socket){
+		io.in(socket.gameID).staggerDelay = 10;
 	},
 
 	emitPlayersInGame: async function (io, socket){
@@ -206,83 +217,103 @@ const client = {
 	},
 
 	join: async function (io, socket, dirtyUserID){
-		//Never use the dirty user ID in SQL queries!
-			//Sanitise Input
-			let userID = dirtyUserID.replace(/[^0-9]/g, '');
-			//if userID is more than 9.9... Billion, it's defintely invalid.
-			if(userID.length > 10){userID = null};
-	
-			userID = parseInt(userID, 10);	
+		//Sanitise Input
+		if(sanitise.userID(dirtyUserID) === false){
+			//Reject bad input
+			socket.emit('dodgyID');
+			log.critical("Dodgy User ID denied:" + dirtyUserID);
+			return;
+		}
+		//Made it this far, userID is clean
+		const userID = dirtyUserID;
 
-			if(userID === NaN){
-				//Reject bad input
-				socket.join("dodgyID");
-				io.in("dodgyID").emit('dodgyID');
-				log.critical("Dodgy User ID denied:" + dirtyUserID);
-				return;
-			} 
-	
-			let gameID = await db.select("game_id", "players", "id", userID);
-			//First result (row); attribute: game_id
-			gameID = gameID[0].game_id;
-			gameID = parseInt(gameID, 10);
+		//Get game ID
+		let gameID = await db.select("game_id", "players", "id", userID);
+		gameID = gameID[0].game_id;
+		gameID = parseInt(gameID, 10);
 
-			socket.gameID = gameID;
-			socket.userID = userID;
+		socket.gameID = gameID;
+		socket.userID = userID;
 
-			//^Sanitisation of ID
+		/* Connect code */
 
-			//Connect code
+		//Clear their disconnect timer before they wait for their turn to go through connect procedure.
+		if (socket.userID != null) {
+			if (timeoutUserIDPivot.includes(socket.userID)) {
+				const timeoutRow = timeoutUserIDPivot.indexOf(socket.userID);
+				clearTimeout(timeouts[timeoutRow]);
+				timeoutUserIDPivot.splice(timeoutRow, 1);
+				timeouts.splice(timeoutRow, 1);
+				log.info("Timeout cleared & deleted from array.");
 
-			//Clear their disconnect timer before they wait for their turn to connect
-			if (socket.userID != null) {
-				if (timeoutUserIDPivot.includes(socket.userID)) {
-					const timeoutRow = timeoutUserIDPivot.indexOf(socket.userID);
-					clearTimeout(timeouts[timeoutRow]);
-					timeoutUserIDPivot.splice(timeoutRow, 1);
-					timeouts.splice(timeoutRow, 1);
-					log.info("Timeout cleared & deleted from array.");
-
-				}
 			}
+		}
 
-			if(io.in(socket.gameID).staggerDelay == null){
-				io.in(socket.gameID).staggerDelay = 10;
-			}
+		
+		client.stagger(io, socket, [io, socket], async (...parameters) => {
+			socket.join(socket.gameID);
+			// console.log("Node Session data says - Game ID:" + socket.gameID + " User ID:" + socket.userID)
+
+			//Let user know they connected and output this to their console.
+			socket.emit('joinRoomSuccess');
 			
-			setTimeout(async(io, socket) => {
-				
-					socket.join(socket.gameID);
-					// console.log("Node Session data says - Game ID:" + socket.gameID + " User ID:" + socket.userID)
-					//if they return after leaving within 10 seconds, stop db from updating them to disconnected.
-				
-					//User joined their room. Mark them as connected in DB
-					await db.update("players", "connected", 1, "id", socket.userID);
+			//User joined their room. Mark them as connected in DB
+			await player.flagAsConnected(socket);
+			await player.updateState(socket, "active");
 
-					//Let user know they connected and output this to console.
-					// console.log(userID + ' Joined room:' + socket.gameID);
-					io.in(gameID).emit('joinRoomSuccess');
+			await game.ensureHostAndMaster(io, socket);
+			await player.ensureCount(io, socket); 
+			//Player will get flagged as disconnected if there's too many players.
 
-					//Let everyone in room know the updated connected users list.
-					client.emitPlayersInGame(io, socket);
+			client.requestState(io, socket, true);
+			client.emitPlayersInGame(io, socket);
+		})
 
-					//Player will get flagged as disconnected if there's too many players.
-					
-					await master.ensureExists(io, socket);
-					
-					
-					await player.ensureCount(io, socket); 
-		client.emitPlayersInGame(io, socket);
 
-					client.requestState(io, socket, true);
-
-			}, io.in(socket.gameID).staggerDelay, io, socket);
-			//add stagger delay for next person
-			io.in(socket.gameID).staggerDelay += (hatefulConfig.staggerDelay / 2);
-
-			log.info("Join Staggering Delay: " +  io.in(socket.gameID).staggerDelay);
+		log.info("Join Staggering Delay: " +  io.in(socket.gameID).staggerDelay);
 
 			
+	},
+
+	disconnect: async function (io, socket){
+		if (socket.userID == null) {
+			log.warning("User disconnected but no session. Exiting disconnectTimer function.");
+			return;
+		}
+		
+		log.info("A user (" + socket.userID + ") is disconnecting...");
+	
+		const disconnectTimer = setTimeout(async (io, socket) => {
+			//Create set timeout to flag as disconnected and re-choose or master after a few seconds
+
+			log.info("disconnectTimer triggered");
+	
+			await player.flagAsDisconnected(socket);
+			
+			await game.ensureHostAndMaster(io, socket);
+	
+			await player.ensureCount(io, socket);
+			
+			client.emitPlayersInGame(io, socket);
+	
+			//Clear this timer from the timeouts table
+			const timeoutRow = timeoutUserIDPivot.indexOf(socket.userID);
+			//Important to delete both to keep timeouts and user ID's indexes aligned.
+			timeoutUserIDPivot.splice(timeoutRow, 1);
+			timeouts.splice(timeoutRow, 1);
+	
+			delete socket.userID;
+			delete socket.gameID;
+			
+			log.info("Session & Disconnect timeout deleted - no longer needed.");
+	
+		}, hatefulConfig.disconnectTimerLength, io, socket);
+		// Important to pass socket & io to the timer function!
+	
+		timeouts.push(disconnectTimer);
+		timeoutUserIDPivot.push(socket.userID);
+		log.info("Timer pushed.");
+	
 	},
 
 	refresh: function (io, socket, gameID = null){
@@ -314,6 +345,7 @@ const client = {
 		socket.emit("overflow-player");
 		client.showOverflowScreen;
 	},
+
 
 	showOverflowScreen: function(socket){
 		let screen = files.get("game-states/overflow-player.html");
@@ -493,7 +525,186 @@ const client = {
 	
 		io.in(socket.gameID).emit('update-card-backs', cardBacksView);
 	
+	},
+
+	showTimer: async function (io, socket, parameters, action, timerLength = hatefulConfig.gameTimerLength){
+		//reset user's front-end timer
+		socket.emit('times-up');
+
+		const timeLeft = await game.timer.getTimeLeft(socket);
+
+		if (timeLeft === false){
+			//There is no appropiate time left or existing timer, start a new timer.
+			if(await master.check(socket)){
+				//Only allow master to start timers.
+				await game.timer.start(io, socket, parameters, action, timerLength);
+			}
+			socket.emit('start-timer', timerLength);
+		} else {
+			//Timer has already been set and is still relevant. Simply show user time left on it.
+			socket.emit('start-timer', timeLeft);
+		}
+		
+	},
+
+	show: {
+		results: {
+			shortlisted: async (socket) => {
+				const latestRound = await game.getLatestRound(socket);
+				//Check how many blanks there are in this round's question
+				const blanks = await db.select("blanks", "questions", "id", latestRound.question_id);
+				const shortlistedAnswers = await cards.getShortlistedAnswers(latestRound);
+
+				client.show.results.shortlistedAnswers(socket, shortlistedAnswers, blanks);
+			},
+
+			winners: async (socket) => {
+				const latestRound = await game.getLatestRound(socket);
+				//Check how many blanks there are in this round's question
+				const blanks = await db.select("blanks", "questions", "id", latestRound.question_id);
+				const shortlistedAnswers = await cards.getShortlistedAnswers(latestRound);
+
+				client.show.results.shortlistedAnswers(socket, shortlistedAnswers, blanks);
+				client.show.results.winnerAnswer(socket, shortlistedAnswers);
+			},
+			
+			shortlistedAnswers: async (socket, shortlistedAnswers, blanks) => {
+
+				let answersInsert = "";
+				let currentAnswerText = "";
+				for (let i = 0; i < shortlistedAnswers.length; i++) {
+					//Skip --don't print this card if it IS a winner
+					if(shortlistedAnswers[i].iswinner == 1){
+						continue;
+					}
+
+					if(i===0){
+						answersInsert += `<div class="answer-grouping-container">`;
+					}
+					if(i % blanks === 0 && i !== 0 && i !== shortlistedAnswers.length){
+						answersInsert += `</div><div class="answer-grouping-container">`;
+					}
+
+					//Check if roaster card or not.
+					if(shortlistedAnswers[i].player_roaster_id == null){
+						//This row has an actual answer
+						//Make data for new game state
+						let currentAnswerResult = await db.select("answer", "answers", "id", shortlistedAnswers[i].answer_id);
+						currentAnswerText = currentAnswerResult[0].answer;
+
+					} else {
+						//This row has an player roaster
+						//Make data for new game state
+						let currentRoasterResult = await db.select("fullname", "players", "id", shortlistedAnswers[i].player_roaster_id);
+						currentAnswerText = "<span class='text-capitalize'>" + currentRoasterResult[0].fullname + ". </span>";
+						// answersInsert += `<a class="click-card answer-not-selected" id="roaster-answer-${playerAnswers[i].player_roaster_id}" onclick="pickAnswer(${playerAnswers[i].player_roaster_id}, 'player-name-roaster', 'shortlisted')" href="#">`;
+
+					}
+			
+			
+					answersInsert += `
+					<div class="card game-card answer-card">
+						<div class="card-body game-card-body p-2">
+							<div class="card-text-answer">
+								${currentAnswerText}
+							</div>
+							<div class="hateful-watermark">
+							hateful.io
+							</div>
+						</div>
+						</div>
+					`
+			
+				}
+			
+				answersInsert += "</div>";
+			
+				socket.emit('show-results', answersInsert);
+
+			},
+
+			winnerAnswer: async (socket, playerAnswers) => {
+
+
+
+				let blanks = 1;
+				let checkForBlanksID = playerAnswers[0].player_id;
+				//Start at one because we'e already  ^ checked 0.
+				for (let index = 1; index < playerAnswers.length; index++) {
+					if (playerAnswers[index].player_id === checkForBlanksID){
+						blanks++;
+					}
+				}
+
+
+
+				let answersInsert = "";
+				let currentAnswerText = "";
+				for (let i = 0; i < playerAnswers.length; i++) {
+					//Skip --don't print this card if it aint a winner
+					if(playerAnswers[i].iswinner != 1){
+						continue;
+					}
+
+					if(playerAnswers[i].player_id === socket.userID){
+						socket.to(socket.gameID).emit("you-lost");
+						socket.emit("you-won");
+					}
+
+					//Check if roaster card or not.
+					if(playerAnswers[i].answer_id != null){
+						//This row has an actual answer
+						//Make data for new game state
+						currentAnswerText = await db.select("answer", "answers", "id", playerAnswers[i].answer_id);
+						currentAnswerText = currentAnswerText[0].answer;
+						if(i===0){
+							answersInsert += `<div  style="display: flex; float: left;">`;
+						}
+						if(i % blanks === 0 && i !== 0 && i !== playerAnswers.length){
+							answersInsert += `</div><div  style="display: flex; float: left;">`;
+						}
+					} else {
+						//This row has an actual answer
+						//Make data for new game state
+						currentAnswerText = await db.select("fullname", "players", "id", playerAnswers[i].player_roaster_id);
+						currentAnswerText = "<span class='text-capitalize'>" + currentAnswerText[0].fullname + ". </span>";
+						// answersInsert += `<a class="click-card answer-not-selected" id="roaster-answer-${playerAnswers[i].player_roaster_id}" onclick="pickAnswer(${playerAnswers[i].player_roaster_id}, 'player-name-roaster', 'shortlisted')" href="#">`;
+						if(i===0){
+							answersInsert += `<div style="display: flex; float: left;">`;
+						}
+						if(i % blanks === 0 && i !== 0 && i !== playerAnswers.length){
+							answersInsert += `</div><div style="display: flex; float: left;">`;
+						}
+					}
+
+
+					answersInsert += `
+					<div class="card game-card answer-card">
+					<div class="card-body game-card-body p-2">
+						<div class="card-text-answer">
+							${currentAnswerText}
+						</div>
+						<div class="hateful-watermark">
+						👑 Winner
+						</div>
+						
+					</div>
+					</div>
+					
+					`
+
+				}
+
+				answersInsert += "</div>";
+
+				socket.emit('print-winners', answersInsert);
+
+
+			}
+		}
 	}
+
+
 }
 
 const game = {
@@ -514,101 +725,96 @@ const game = {
 			return;
 		}
 
-		let isMaster = await db.select("ismaster", "players", "id", socket.userID);
-		isMaster = isMaster[0].ismaster;		
-
-		await master.ensureExists(io, socket);
+		const isMaster = await master.check(socket);
+		
+		await game.ensureHostAndMaster(io, socket);
 
 		let userStateResult = await db.select("state", "players", "id", socket.userID);
 		let userState = userStateResult[0].state;
-		log.debug(socket.userID + "'s USER state is: " + userState);
+		log.info(socket.userID + "'s USER state is: " + userState);
 
 		let gameStateResult = await db.select("state", "games", "id", socket.gameID);
 		let gameState = gameStateResult[0].state;
-		log.debug(socket.gameID + "'s GAME state is: " + gameState);
+		log.info(socket.gameID + "'s GAME state is: " + gameState);
 
 		switch (gameState) {
+			case "new-round":
+				//First user to get here changes the game state for everyone accessing afterwards.
+				await game.updateState(io, socket, "picking-question");
+				//fall through to next case.
+
 			case "picking-question":
-				game.startTimer(io, socket, hatefulConfig.gameTimerLength, [io, socket], function(...parameters) {
-					newMaster(io, socket, null, true);
+				client.showTimer(io, socket, [io, socket], (...parameters) => {
+					master.timedOut(io, socket);
 				});
-				if (isMaster == 1){
-					//Reset staggering delay.
-					io.in(socket.gameID).staggerDelay = 0;
+				if (isMaster){
 					client.showQuestions(socket, await cards.getMasterQuestions(socket));
-					//if master times out, change master - and if they're host, change host too.
 				} else {
 					client.showQuestionWaiting(socket);
 				}
 			break;
 			
 			case "picking-answer":
-				game.startTimer(io, socket, hatefulConfig.gameTimerLength, [io, socket], function(...parameters) {
+				client.showTimer(io, socket, [io, socket], (...parameters) => {
 					//If they don't answer in time they won't be able to win.
 					//If nobody answers the timer is reset.
 					proceedWithMissingAnswers(io, socket);
 				});
-				if (isMaster == 1){
+				if (isMaster){
 					client.showAnswerWaiting(socket);
 				} else {			
 					client.showMainTemplate(socket);
 					client.showRoundQuestion(socket, await cards.getRoundQuestion(socket));
-
-					client.stagger(io, socket, [socket], function(...parameters) {
+					client.stagger(io, socket, [socket], (...parameters) => {
 						cards.getPlayerAnswers(socket);
 					});
-
 				}
 			break;
 
 			case "picking-winner":
-				//Change "answered" user states to active again
-				//If they haven't answered then their state would still be active.
 				if(userState === "answered"){
+					//Change "answered" user states to active again
+					//If they haven't answered then their state would still be active.
 					await player.updateState(socket, "active");
 					client.requestState(io, socket);
+					break;
 				}
 
-				//if master times out, change master - and if they're host, change host too.
-				
-				game.startTimer(io, socket, hatefulConfig.gameTimerLength, [io, socket], function(...parameters) {
-					newMaster(io, socket, null, true)
+				client.showTimer(io, socket, [io, socket], (...parameters) => {
+					//if master times out, change master 
+					master.timedOut(io, socket);
 				});
-				if (isMaster == 1){	
-					//reset stagger delay
-					io.in(socket.gameID).staggerDelay = 0;
-					//Master needs to see everyones card's
+
+				if (isMaster){	
+					client.resetStaggerDelay(io, socket);
 					client.showMainTemplate(socket);
 					client.showRoundQuestion(socket, await cards.getRoundQuestion(socket));
 					getMasterAnswers(socket);
 				} else {
-					//TODO - SHOW THEM dummy answer cards
-					showResultsWaitingScreen(socket);
+					client.show.results.shortlisted(socket);
 				}
 			break;
 			
 			case "show-winner":
+				client.showTimer(io, socket, [io, socket], async (...parameters) => {
+					await game.updateState(io, socket, "next-round");
+					client.requestState(io, socket);
+				}, (hatefulConfig.gameTimerLength / 3));
+
 				client.showMainTemplate(socket);
 				client.showRoundQuestion(socket, await cards.getRoundQuestion(socket));
-				showWinners(socket);
+				client.show.results.winners(socket);
 
-				if (isMaster == 1){		
-					game.startTimer(io, socket, (hatefulConfig.gameTimerLength / 3), [io, socket], async function(...parameters) {
-						log.green("Start timer activeated. changing game state to start.")
-						await game.updateState(io, socket, "start");
-						client.requestState(io, socket);
-					});
-				} else {
-					//Emit dummy timer
-					socket.emit('start-timer', (hatefulConfig.gameTimerLength / 3));
-				}
+
 			break;
-			case "start":
+			case "next-round":
 				showLoader(io, socket);
-				if (isMaster == 1){		
-					await game.updateState(io, socket, "picking-question");
-					log.green("Executing sart new round");
-					startNewRound(io, socket);
+				if (isMaster){		
+					const latestRound = await game.getLatestRound(socket);
+					await game.newRound(io, socket);
+					await master.fromWinner(socket, latestRound);
+
+					client.refresh(io, socket, socket.gameID);
 				}
 				break;
 			default:
@@ -636,8 +842,8 @@ const game = {
 				client.showRoundQuestion(socket, await cards.getRoundQuestion(socket));
 				showPlayerAnswerWaiting(socket);
 				//If timer is already set (which it should be), they will just see a continuation of their previous countdown.
-				game.startTimer(io, socket, hatefulConfig.gameTimerLength, function() {
-					proceedWithMissingAnswers(io, socket)
+				game.timer.start(io, socket, [io, socket], (...parameters) => {
+					proceedWithMissingAnswers(io, socket);
 				});
 				break;
 		
@@ -650,102 +856,94 @@ const game = {
 
 	updateState: async function (io, socket, stateName){
 		await db.update("games", "state", stateName, "id", socket.gameID);
-		this.clearTimer(io, socket);
+		game.timer.clear(io, socket);
 	},
 
-	start: async function (io, socket, masterID = null){
-		//reset the stagger delay
+	start: async function (socket){
+		//Make sure that only hosts execute this function to avoid useless re-writes of data
+		if(await host.check(socket)){
+			await db.update("games", "started", 1, "id", socket.gameID);
+		}
+	},
+
+	end: async function (io, socket){
+		//Delete everything related to this game
+		log.important(socket.gameID + " Game ended!");
+	},
+
+	newRound: async function (io, socket){
+		//Make sure that only masters or hosts execute this function to avoid useless re-writes of data
+		if(!(await master.check(socket) || await host.check(socket))){
+			//If is neither host or master, exit
+			return;
+		}
+
+		//Reset the stagger delay
 		io.in(socket.gameID).staggerDelay = 0;
-	
-		// console.log("In start game!!!");
-		if(socket.userID == null){
-			return;
-		}
 
-		const gameID = socket.gameID;
-
-		let userID = socket.userID;
-
-		if(masterID != null){userID = masterID};
-
-		let isHost = await db.select("ishost", "players", "id", userID);
-		let isMaster = await db.select("ismaster", "players", "id", userID);
-		isHost = isHost[0].ishost;		
-		isMaster = isMaster[0].ismaster;		
-
-		//Only the master/host can start game
-		if (isMaster != 1 && isHost != 1){
-			return;
-		}
-
-		log.debug("Is Master, Starting Game!")
-		
-		const queryValues = ["rounds", "game_id", gameID];
+		//Create new round
+		const queryValues = ["rounds", "game_id", socket.gameID];
 		await db.query("INSERT INTO ?? (??) VALUES (?);", queryValues);
-		
-		await db.update("games", "started", 1, "id", gameID);
 
+		await game.updateState(io, socket, "new-round");
 	},
 
-	startTimer: async function (io, socket, timerLength = null, parameters = null, action = null){
-
-		socket.emit('times-up');
+	timer: {
+		getTimeLeft: async function (socket){
 	
-		//select timer length, timerstart from game table where game id = socket game id
-		let queryValues = ["timer_start", "timer_length", "games", "id", socket.gameID];
-		const mysqlGameTimer = await db.query("SELECT ??, ?? FROM ?? WHERE ?? = ?", queryValues);
+			//Get timer info if exists
+			let queryValues = ["timer_start", "timer_length", "games", "id", socket.gameID];
+			const mysqlGameTimer = await db.query("SELECT ??, ?? FROM ?? WHERE ?? = ?", queryValues);
+			
+			//Calculate time left on timer
+			const endOfTimer = parseInt(mysqlGameTimer[0].timer_start) + parseInt(mysqlGameTimer[0].timer_length);
+			const timeLeftOnTimer = endOfTimer - (Date.now()/1000);
 	
-		log.debug("DEBUG: timer_start:" + mysqlGameTimer[0].timer_start + "timer_length:" + mysqlGameTimer[0].timer_length + "-");
-	
-		//if timer start + timer length is in past or timer start is null, timer expired -- insert (update) timer
-		const endOfTimer = parseInt(mysqlGameTimer[0].timer_start) + parseInt(mysqlGameTimer[0].timer_length);
-		const timeLeftOnTimer = endOfTimer - (Date.now()/1000);
+			if(mysqlGameTimer[0].timer_start == null || isNaN(endOfTimer) || timeLeftOnTimer <= 0){
+				return false;
+			} else {				
+				return timeLeftOnTimer;
+			}
 		
-		log.debug("timeLeftOnTimer:" + timeLeftOnTimer);
+		},
 	
-		if(!(mysqlGameTimer[0].timer_start == null || isNaN(endOfTimer) || timeLeftOnTimer <= 0)){
-			//endOfTimer should be a valid time stamp.
-			//timer is still current -> (timerstart + timerlength) - current time = time left on timer
-			//emit start timer with time left on timer
-			socket.emit('start-timer', timeLeftOnTimer);
-	
-		} else {
-			//Timer hasn't been set or is a dodgy value.
-	
-			//If this game already has a game timer, delete it.
-			clearTimeout(io.in(socket.gameID).gameTimer);
-			io.in(socket.gameID).gameTimer = null
-	
-			//Create the timer
-			queryValues = ["games", "timer_start", (Date.now()/1000), "timer_length", timerLength, "id", socket.gameID];
-			db.query("UPDATE ?? SET ?? = ?, ?? = ? WHERE ?? = ? ", queryValues);
-	
-			socket.emit('start-timer', timerLength);
+		start: async function (io, socket, parameters = null, action = null,  timerLength = hatefulConfig.gameTimerLength){
+			
+			//destroy any trace of a previous timer.
+			await game.timer.clear(io, socket);
 	
 			//Create a new timer
 			io.in(socket.gameID).gameTimer = setTimeout((io, socket, action, parameters) => {
-				log.debug("GAME TIMER GONE OFF");
-				io.in(socket.gameID).emit('times-up');
+
+				log.info("Game Timer for game: " + socket.gameID + " gone off.")
+
 				if(action !== null){
 					action(...parameters);
 				}
-				io.in(socket.gameID).gameTimer = null
-				//=5 secs to help everyone sync properly.
+				
+				game.timer.clear(io, socket)
+
+				//+5 secs to give some headroom and leighway
 			}, ((timerLength + 5) * 1000), io, socket, action, parameters);
-	
+
+
+			//Save timer info in database
+			const queryValues = ["games", "timer_start", (Date.now()/1000), "timer_length", timerLength, "id", socket.gameID];
+			await db.query("UPDATE ?? SET ?? = ?, ?? = ? WHERE ?? = ? ", queryValues);
+
+		},
+
+		clear: async function (io, socket){
+			io.in(socket.gameID).emit('times-up');
+
+			clearTimeout(io.in(socket.gameID).gameTimer);
+			delete io.in(socket.gameID).gameTimer;
+
+			//clear the timer
+			let queryValues = ["games", "timer_start", null, "timer_length", null, "id", socket.gameID];
+			await db.query("UPDATE ?? SET ?? = ?, ?? = ? WHERE ?? = ? ", queryValues);
 		}
-	
-	},
 
-	clearTimer: function (io, socket){
-		io.in(socket.gameID).emit('times-up');
-
-		clearTimeout(io.in(socket.gameID).gameTimer);
-		io.in(socket.gameID).gameTimer = null
-
-		//clear the timer
-		let queryValues = ["games", "timer_start", null, "timer_length", null, "id", socket.gameID];
-		db.query("UPDATE ?? SET ?? = ?, ?? = ? WHERE ?? = ? ", queryValues);
 	},
 
 	everyoneAnswered: 	async function(socket){
@@ -766,13 +964,102 @@ const game = {
 		} else {
 			return false;
 		}
-	}
+	},
 	
+	ensureHostAndMaster: async function (io, socket){
+		//Ensures that there is a master and host. Will REFRESH clients in game if master or host changes
+
+		//Select masters flagged CONNECTED
+		let queryValues = ["id", "players", "game_id", socket.gameID, "connected", 1, "ismaster", 1];
+		const connectedMasters = await db.query("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ?;", queryValues);
+	
+		//Select hosts flagged CONNECTED
+		queryValues = ["id", "players", "game_id", socket.gameID, "connected", 1, "ishost", 1];
+		const connectedHosts = await db.query("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ?;", queryValues);
+	
+		//Find appropiate new host/master
+		queryValues = ["id", "fullname", "players", "game_id", socket.gameID, "connected", 1, "ishost", 0, "ismaster", 0, "created_at"];
+		const playersLeft = await db.query("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? AND ?? = ? ORDER BY ?? DESC", queryValues);
+		
+	
+		if(connectedMasters.length === 0 && connectedHosts.length === 0){
+			//clear all hosts and masters even if not connected
+			await db.update("players", "ishost", 0, "game_id", socket.gameID);
+			await db.update("players", "ismaster", 0, "game_id", socket.gameID);
+			//now there's nobody in charge at all
+	
+			 if(playersLeft.length == 0){
+				//Everyone Left
+				game.end(io, socket);
+				return;
+			 } else {
+				//clear any hosts and masters even those disconnected
+				await db.update("players", "ishost", 0, "game_id", socket.gameID);
+				await db.update("players", "ismaster", 0, "game_id", socket.gameID);
+
+				await db.update("players", "ishost", 1, "id", playersLeft[0].id);
+				await db.update("players", "ismaster", 1, "id", playersLeft[0].id);
+				
+				log.info(socket.userID + " lost Host privilege to " + playersLeft[0].id);
+
+				// const newHost = [playersLeft[0].id, playersLeft[0].fullname];
+				// io.in(socket.gameID).emit('newHost', newHost);
+			 }
+
+			 client.refresh(io, socket, socket.gameID);
+	
+		} else if (connectedMasters.length === 0){
+			//we just need a new master
+
+			//clear any hosts and masters even those disconnected
+			await db.update("players", "ishost", 0, "game_id", socket.gameID);
+			await db.update("players", "ismaster", 0, "game_id", socket.gameID);
+			
+			//make the old host host again, he was fine
+			await db.update("players", "ishost", 1, "id", connectedHosts[0].id);
+
+			//Make the connected user we found master
+			await db.update("players", "ismaster", 1, "id", playersLeft[0].id);
+	
+			client.refresh(io, socket, socket.gameID);
+	
+		} else if (connectedHosts.length === 0){
+			//we just need a new host
+
+			//clear any hosts and masters even those disconnected
+			await db.update("players", "ishost", 0, "game_id", socket.gameID);
+			await db.update("players", "ismaster", 0, "game_id", socket.gameID);
+
+			//Make the connected user we found host
+			await db.update("players", "ishost", 1, "id", playersLeft[0].id);
+
+			//make the old master master again, he was fine
+			await db.update("players", "ismaster", 1, "id", connectedMasters[0].id);
+
+			client.refresh(io, socket, socket.gameID);
+
+		} else {
+			//everything seems to be ok...
+		}
+	},
+
 }
 
 const sanitise = {
 	// Input sanitising functions
 
+	userID: function(dirtyUserID){
+		let userID = dirtyUserID.replace(/[^0-9]/g, '');
+		//if userID is more than 10 characters, it's defintely invalid.
+		if(userID.length > 10){
+			return false;
+		};
+		userID = parseInt(userID, 10);	
+		if(isNaN(userID)){
+			return false;
+		} 
+		return true;
+	},
 
 	playerAnswer: function (dirtyAnswerIDS){
 		if(dirtyAnswerIDS.length === 2){
@@ -1009,7 +1296,7 @@ const cards = {
 	},
 
 	getPlayerAnswers: async function (socket) {	
-		//Don't allow master to get cards.
+		//Don't allow master to get answer cards.
 		if(!master.check(socket)){return;};
 	
 		log.pink("made it through master check");
@@ -1036,6 +1323,13 @@ const cards = {
 	
 		client.showAnswers(socket, answers);
 
+	},
+
+	getShortlistedAnswers: async function (latestRound) {
+		//get shortlisted round_answer rows for this round.
+		const queryValues = ["answer_id", "player_roaster_id", "player_id", "iswinner", "round_answer", "round_id", latestRound[0].id, "shortlisted", 1];
+		const shortlistedAnswers = await db.query("SELECT ??, ??, ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? ORDER BY player_id, `order` ASC", queryValues);
+		return shortlistedAnswers;
 	},
 
 	getCardBacks: async function (socket, cardBacks) {
@@ -1123,7 +1417,24 @@ const cards = {
 
 }
 
+const host = {
+	//The host has the ability to start the game, and (in future) end the game early & kick out players.
+	check: async function (socket){
+		/* Check if they are host */ 
+		let isHost = await db.select("ishost", "players", "id", socket.userID);
+		isHost = isHost[0].ishost;
+		
+		if(isHost == 1){
+			return true;
+		} else {
+			return false;
+		}
+	},
+}
+
 const master = {	
+	//The master is responsible for choosing questions, and the winner of each round. 
+
 	// Question master invoked methods & data
 
 	check: async function (socket){
@@ -1148,67 +1459,35 @@ const master = {
 		await db.update("players", "state", masterState, "id", playersInGame[0].id);
 	},
 
-	ensureExists: async function (io, socket){
+	timedOut: async function (io, socket){
+		await player.updateState(socket, "disconnected");
+		await player.flagAsDisconnected(socket);
+		await master.change(io, socket);
+	},
 
-		//Select masters flagged CONNECTED
-		let queryValues = ["id", "players", "game_id", socket.gameID, "connected", 1, "ismaster", 1];
-		const connectedMasters = await db.query("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ?;", queryValues);
-	
-		//Select hosts flagged CONNECTED
-		queryValues = ["id", "players", "game_id", socket.gameID, "connected", 1, "ishost", 1];
-		const connectedHosts = await db.query("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ?;", queryValues);
-	
-	
-		if(connectedMasters.length === 0 && connectedHosts.length === 0){
-			//clear all hosts and masters
-			await db.update("players", "ishost", 0, "game_id", socket.gameID);
-			await db.update("players", "ismaster", 0, "game_id", socket.gameID);
-			//there's nobody in charge
-	
-			//find a new host&master
-			 //Find appropiate new host/master
-			 queryValues = ["id", "fullname", "players", "game_id", socket.gameID, "connected", 1, "ishost", 0, "ismaster", 0, "created_at"];
-			 playersLeft = await db.query("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? AND ?? = ? ORDER BY ?? DESC", queryValues);
-			 
-			 if(playersLeft.length == 0){
-				 return;
-			 } else {
-			
-				 await db.update("players", "ishost", 1, "id", playersLeft[0].id);
-				 await db.update("players", "ismaster", 1, "id", playersLeft[0].id);
-				 // console.log('\x1b[42;97m%s\x1b[0m', "***Everyone left!***");
-				 
-				 log.info(socket.userID + " lost Host privilege to " + playersLeft[0].id);
-	
-				 const newHost = [playersLeft[0].id, playersLeft[0].fullname];
-				 io.in(socket.gameID).emit('newHost', newHost);
-			 }
-	
-		} else if (connectedMasters.length === 0){
-			//clear all hosts and masters
-			await db.update("players", "ishost", 0, "game_id", socket.gameID);
-			await db.update("players", "ismaster", 0, "game_id", socket.gameID);
-			//we just need a new master
-			//make host the master
-			//connectedHosts[0].id should be the new master
-			await db.update("players", "ishost", 1, "id", connectedHosts[0].id);
-			await db.update("players", "ismaster", 1, "id", connectedHosts[0].id);
-	
-	
-		} else if (connectedHosts.length === 0){
-			//clear all hosts and masters
-			await db.update("players", "ishost", 0, "game_id", socket.gameID);
-			await db.update("players", "ismaster", 0, "game_id", socket.gameID);
-			//we just need a new host
-			//make master the host
-			//connectedMasters[0].id should be the new host
-			await db.update("players", "ishost", 1, "id", connectedMasters[0].id);
-			await db.update("players", "ismaster", 1, "id", connectedMasters[0].id);
-	
-		} else {
-			//everything seems to be ok...
-			return;
-		}
+	change: async function (io, socket){		
+		//Change master - clear master status and find a new one.
+
+		//Clear any existing master
+		await db.update("players", "ismaster", 0, "game_id", socket.gameID);
+
+		//Find a new master
+		await game.ensureHostAndMaster(io, socket);
+	},
+
+	fromWinner: async function(socket, latestRound) {
+		//Clear any existing master
+		await db.update("players", "ismaster", 0, "game_id", socket.gameID);
+
+
+		//Find winner 
+		const queryValues = ["player_id", "round_answer", "round_id", latestRound[0].id, "iswinner", 1];
+		const newMasterResult = await db.query("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ?", queryValues);
+
+		const winnerID = newMasterResult[0].player_id;
+
+		//Set found winner as Master
+		await db.update("players", "ismaster", 1, "id", winnerID);
 	},
 
 	pickQuestion: async function (io, socket, dirtyQuestionID){
@@ -1274,21 +1553,42 @@ const player = {
 		await db.update("players", "connected", 0, "id", socket.userID);
 	},
 
+	flagAsConnected: async function (socket){
+		await db.update("players", "connected", 1, "id", socket.userID);
+	},
+
 	ensureCount: async function (io, socket){
 		//Ensure that there is the right amount of players
 		//Deal with overflow players
 		//!!! Make sure that host & master have been ensured before calling this function.
 
+		
+		//Get a list of users flagged as connected to this game.
+		let queryValues = ["id", "players", "game_id", socket.gameID, "connected", 1];
+		const connectedPlayers = await db.query("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ?", queryValues);
+
+		//Check for NO players
+		if(connectedPlayers.length === 0){
+			//Everyone left
+			game.end(io, socket);
+			return;
+		}
 
 		//Get this user's Master & Host status
-		let queryValues = ["ishost", "ismaster", "players", "id", socket.userID];
+		queryValues = ["ishost", "ismaster", "players", "id", socket.userID];
 		let userPrivileges = await db.query("SELECT ??, ?? FROM ?? WHERE ?? = ?", queryValues);
 		const isMaster = userPrivileges[0].ismaster;
 		const isHost = userPrivileges[0].ishost;
-		
-		//Get a list of users flagged as connected to this game.
-		queryValues = ["id", "players", "game_id", socket.gameID, "connected", 1];
-		const connectedPlayers = await db.query("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ?", queryValues);
+
+		//If current user is not the host, find out who is.
+		let theHostID;
+		if(isHost === 1){
+			theHostID = socket.userID;
+		} else {
+			queryValues = ["id", "players", "game_id", socket.gameID, "ishost", 1];
+			theHostID = await db.query("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ?", queryValues);
+			theHostID = theHostID[0].id;
+		}
 
 		//Check for minimum players.
 		if(connectedPlayers.length >= hatefulConfig.minPlayers){
@@ -1303,7 +1603,7 @@ const player = {
 			io.in(socket.gameID).emit('disableGameStart', theHostID);
 			//If this gets called during gameplay, it will show the lobby page.
 			
-			await game.updateState(io, socket, "start");
+			await game.updateState(io, socket, "next-round");
 			//Clear current round progress. When game gets started again everyone's state will be set to new round states anyway.
 			//Scores are not affected. Scoreboard will continue when game starts again.
 		}
@@ -1368,45 +1668,7 @@ const player = {
 
 
 
-async function disconnectUser(io, socket){
-	if (socket.userID == null) {
-		log.warning("User disconnected but no session. Exiting disconnectTimer function.");
-        return;
-    }
-    
-    log.info("A user (" + socket.userID + ") is disconnecting...");
 
-    //Create set timeout to flag as disconnected and re-choose host after a few seconds
-    const disconnectTimer = setTimeout(async function(io, socket){
-        log.info("disconnectTimer triggered");
-
-        player.flagAsDisconnected(socket);
-        
-		await master.ensureExists(io, socket);
-
-		await player.ensureCount(io, socket);
-		
-		client.emitPlayersInGame(io, socket);
-
-        //Clear this timer from the timeouts table
-        const timeoutRow = timeoutUserIDPivot.indexOf(socket.userID);
-        //Important to delete both to keep timeouts and user ID's indexes aligned.
-        timeoutUserIDPivot.splice(timeoutRow, 1);
-        timeouts.splice(timeoutRow, 1);
-
-        delete socket.userID;
-		delete socket.gameID;
-		
-        log.info("Session & Disconnect timeout deleted - no longer needed.");
-
-    }, hatefulConfig.disconnectTimerLength, io, socket);
-    // Important to pass socket & io to the timer function!
-
-    timeouts.push(disconnectTimer);
-    timeoutUserIDPivot.push(socket.userID);
-    log.info("Timer pushed.");
-
-}
 
 
 
@@ -1438,29 +1700,14 @@ async function scoreQuestion(socket, questionID){
 
 
 function newPlayerWaitForNextRound(socket){
-	try {
-		var data = fs.readFileSync(path.resolve(__dirname, "game-states/new-player-waiting.html"), 'utf8');
-		log.info("File read");
-		// setTimeout((socket) => {
-		socket.emit("load-new-state", data);
-		// }, 500, socket);
-	} catch(e) {
-		alertSocket(socket, "Sorry, we couldn't load your game. Something went wrong on our end. Please refresh the page or try again later.")
-		log.critical('File not read:', e.stack);
-	}
+	const screen = files.get("game-states/new-player-waiting.html");
+	socket.emit("load-new-state", screen);
+	
 }
 
 function disconnectedOrTimeout(socket){
-	try {
-		var data = fs.readFileSync(path.resolve(__dirname, "game-states/disconnected-or-timeout.html"), 'utf8');
-		log.info("File read");
-		// setTimeout((socket) => {
-		socket.emit("load-new-state", data);
-		// }, 500, socket);
-	} catch(e) {
-		alertSocket(socket, "Sorry, we couldn't load your game. Something went wrong on our end. Please refresh the page or try again later.")
-		log.critical('File not read:', e.stack);
-	}
+	const screen = files.get("game-states/disconnected-or-timeout.html");
+	socket.emit("load-new-state", screen);
 }
 
 
@@ -1566,42 +1813,21 @@ function showPlayerAnswerWaiting(socket){
 }
 
 async function getMasterAnswers(socket){
-
-	//make sure theyre master
-	let isMaster = await db.select("ismaster", "players", "id", socket.userID);
-	//Returns array of objects
-	//First row, ismaster attribute.
-	isMaster = isMaster[0].ismaster;
 	
-	if(isMaster != 1){
+	if(!(master.check(socket))){
 		return;
 	}
 
 	//Get answers from round_answer from latest round where user = socket.userID
 
 	//Get latest round
-	let queryValues;
 
-	//Get current question
-	//Select latest round
-	queryValues = ["id", "rounds", "game_id", socket.gameID, "id"];
-	const latestRound = await db.query("SELECT ?? FROM ?? WHERE ?? = ? ORDER BY ?? DESC", queryValues);
+	const latestRound = await game.getLatestRound(socket);
 
-	//get shortlisted round_answer rows for this round.
-	queryValues = ["answer_id", "player_id", "player_roaster_id", "round_answer", "round_id", latestRound[0].id, "shortlisted", 1];
-	const playerAnswers = await db.query("SELECT ??, ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? ORDER BY player_id, `order` ASC", queryValues);
-	log.debug("shortlistedAnswers=" + playerAnswers.length)
+	const playerAnswers = await cards.getShortlistedAnswers(latestRound);
 
-	let blanks = 1;
-	let checkForBlanksID = playerAnswers[0].player_id;
-	//Start at one because we'e already  ^ checked 0.
-	for (let index = 1; index < playerAnswers.length; index++) {
-		if (playerAnswers[index].player_id === checkForBlanksID){
-			blanks++;
-		}
-	}
+	const blanks = await db.select("blanks", "questions", "id", latestRound.question_id);
 
-	log.debug("Answer grouping container blansk: " + blanks);
 	//Create cards insert
 	let answersInsert = "<h2 class='mx-1 mb-4'>Pick a winner</h2>";
 	let currentAnswerText = "";
@@ -1658,295 +1884,9 @@ async function getMasterAnswers(socket){
 
 }
 
-function showResultsWaitingScreen(socket){
-	const data = `
-	<span class="spinner-border m-4" style="display:inline-block" role="status">
-    <span class="sr-only">Loading...</span>
-</span>
-<span class="h1 mt-3" style="display:inline-block; position: absolute" >Waiting for Round Master to pick a winner. </span>
-
-	`	
-	socket.emit('load-new-state', data);
-
-}
-
-async function showWinners(socket){
-
-		//Get answers from round_answer from latest round where user = socket.userID
-	
-		//Get latest round
-		let queryValues;
-	
-		//Get current question
-		//Select latest round
-		queryValues = ["id", "rounds", "game_id", socket.gameID, "id"];
-		const latestRound = await db.query("SELECT ?? FROM ?? WHERE ?? = ? ORDER BY ?? DESC", queryValues);
-	
-		//get shortlisted round_answer rows for this round.
-		queryValues = ["answer_id", "player_roaster_id", "player_id", "iswinner", "round_answer", "round_id", latestRound[0].id, "shortlisted", 1];
-		const playerAnswers = await db.query("SELECT ??, ??, ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? ORDER BY player_id, `order` ASC", queryValues);
-		log.debug("shortlistedAnswers=" + playerAnswers.length)
-	
 
 
 
-		let blanks = 1;
-		let checkForBlanksID = playerAnswers[0].player_id;
-		//Start at one because we'e already  ^ checked 0.
-		for (let index = 1; index < playerAnswers.length; index++) {
-			if (playerAnswers[index].player_id === checkForBlanksID){
-				blanks++;
-			}
-		}
-	
-
-		let answersInsert = "";
-		let currentAnswerText = "";
-		for (let i = 0; i < playerAnswers.length; i++) {
-			//Skip --don't print this card if it IS a winner
-			if(playerAnswers[i].iswinner == 1){
-				continue;
-			}
-
-
-			if(i===0){
-				answersInsert += `<div class="answer-grouping-container">`;
-			}
-			if(i % blanks === 0 && i !== 0 && i !== playerAnswers.length){
-				answersInsert += `</div><div class="answer-grouping-container">`;
-			}
-
-
-			//Check if roaster card or not.
-			if(playerAnswers[i].player_roaster_id == null){
-				//This row has an actual answer
-				//Make data for new game state
-				let currentAnswerResult = await db.select("answer", "answers", "id", playerAnswers[i].answer_id);
-				currentAnswerText = currentAnswerResult[0].answer;
-
-			} else {
-				//This row has an player roaster
-				//Make data for new game state
-				let currentRoasterResult = await db.select("fullname", "players", "id", playerAnswers[i].player_roaster_id);
-				currentAnswerText = "<span class='text-capitalize'>" + currentRoasterResult[0].fullname + ". </span>";
-				// answersInsert += `<a class="click-card answer-not-selected" id="roaster-answer-${playerAnswers[i].player_roaster_id}" onclick="pickAnswer(${playerAnswers[i].player_roaster_id}, 'player-name-roaster', 'shortlisted')" href="#">`;
-
-			}
-	
-	
-			answersInsert += `
-			<div class="card game-card answer-card">
-			   <div class="card-body game-card-body p-2">
-				  <div class="card-text-answer">
-					  ${currentAnswerText}
-				  </div>
-				  <div class="hateful-watermark">
-				  hateful.io
-				   </div>
-			   </div>
-			 </div>
-			`
-	
-		}
-	
-		answersInsert += "</div>";
-	
-		socket.emit('show-results', answersInsert);
-
-		printWinnerOnTop(socket, playerAnswers);
-	}
-
-
-async function printWinnerOnTop(socket, playerAnswers){
-
-
-
-	let blanks = 1;
-	let checkForBlanksID = playerAnswers[0].player_id;
-	//Start at one because we'e already  ^ checked 0.
-	for (let index = 1; index < playerAnswers.length; index++) {
-		if (playerAnswers[index].player_id === checkForBlanksID){
-			blanks++;
-		}
-	}
-
-
-
-	let answersInsert = "";
-	let currentAnswerText = "";
-	for (let i = 0; i < playerAnswers.length; i++) {
-		//Skip --don't print this card if it aint a winner
-		if(playerAnswers[i].iswinner != 1){
-			continue;
-		}
-
-		if(playerAnswers[i].player_id === socket.userID){
-			socket.to(socket.gameID).emit("you-lost");
-			socket.emit("you-won");
-		}
-
-		//Check if roaster card or not.
-		if(playerAnswers[i].answer_id != null){
-			//This row has an actual answer
-			//Make data for new game state
-			currentAnswerText = await db.select("answer", "answers", "id", playerAnswers[i].answer_id);
-			currentAnswerText = currentAnswerText[0].answer;
-			if(i===0){
-				answersInsert += `<div  style="display: flex; float: left;">`;
-			}
-			if(i % blanks === 0 && i !== 0 && i !== playerAnswers.length){
-				answersInsert += `</div><div  style="display: flex; float: left;">`;
-			}
-		} else {
-			//This row has an actual answer
-			//Make data for new game state
-			currentAnswerText = await db.select("fullname", "players", "id", playerAnswers[i].player_roaster_id);
-			currentAnswerText = "<span class='text-capitalize'>" + currentAnswerText[0].fullname + ". </span>";
-			// answersInsert += `<a class="click-card answer-not-selected" id="roaster-answer-${playerAnswers[i].player_roaster_id}" onclick="pickAnswer(${playerAnswers[i].player_roaster_id}, 'player-name-roaster', 'shortlisted')" href="#">`;
-			if(i===0){
-				answersInsert += `<div style="display: flex; float: left;">`;
-			}
-			if(i % blanks === 0 && i !== 0 && i !== playerAnswers.length){
-				answersInsert += `</div><div style="display: flex; float: left;">`;
-			}
-		}
-
-
-		answersInsert += `
-		<div class="card game-card answer-card">
-		<div class="card-body game-card-body p-2">
-			<div class="card-text-answer">
-				${currentAnswerText}
-			</div>
-			<div class="hateful-watermark">
-			👑 Winner
-			</div>
-			
-		</div>
-		</div>
-		
-		`
-
-	}
-
-	answersInsert += "</div>";
-
-	socket.emit('print-winners', answersInsert);
-
-
-}
-
-async function newMaster(io, socket, newMaster = null, newHost = false){
-	const originalNewMaster = newMaster;
-
-	log.debug("In New Master!!! User: " + socket.userID)
-
-	//Changes master to a new current player
-	//If newMaster = "winner" then the winner of the last round will become master
-	//If newMaster is not null, newMaster's value will become the new Master
-    //Otherwise a random new master is chosen
-    //Set newHost to true to also make this person the newHost (IF NECESSARY)
-
-
-	let queryValues;
-	let playersLeft;
-
-	//Find old Master
-	queryValues = ["id", "players", "ismaster", 1, "game_id", socket.gameID];
-	let oldMasterResult = await db.query("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ?", queryValues);
-	const oldMaster = oldMasterResult[0].id;
-
-	//Find old Host
-	queryValues = ["id", "players", "ishost", 1, "game_id", socket.gameID];
-	let oldHostResult = await db.query("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ?", queryValues);
-	const oldHost = oldHostResult[0].id;
-
-	if(newHost === true && oldMaster === oldHost){
-		//Find an appropriate new Host (someone who has most recently connected to this game)
-		queryValues = ["id", "fullname", "players", "game_id", socket.gameID, "connected", 1, "ishost", 0, "created_at"];
-		playersLeft = await db.query("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? ORDER BY ?? DESC", queryValues);
-		
-		log.debug("Players Left obj: " + JSON.stringify(playersLeft));
-	
-		if(playersLeft.length!==0){
-			let newHost = playersLeft[0].id;
-			log.debug("newHost=" + newHost);
-
-			//Order is important in case new host happens to be old host again
-			await db.update("players", "ishost", 0, "id", oldHost);
-			await db.update("players", "ishost", 1, "id", newHost);
-
-			log.info(" lost Host privilege to " + newHost);
-
-			const newHostName = await db.select("fullname", "players", "id", newHost);
-			const newHostData = [newHost, newHostName[0].fullname];
-			
-			io.in(socket.gameID).emit('newHost', newHostData);
-		} 
-	}
-
-
-
-
-	if(newMaster === null){
-		//Find an appropriate new Master (someone who has most recently connected to this game)
-		queryValues = ["id", "fullname", "players", "game_id", socket.gameID, "connected", 1, "ismaster", 0, "created_at"];
-		playersLeft = await db.query("SELECT ??, ?? FROM ?? WHERE ?? = ? AND ?? = ? AND ?? = ? ORDER BY ?? DESC", queryValues);
-		newMaster = playersLeft[0].id;
-		
-		//make old host idle?
-
-    } 
-    
-	if(newMaster === "winner"){
-		//Select latest round
-		queryValues = ["id", "rounds", "game_id", socket.gameID, "id"];
-		const latestRound = await db.query("SELECT ?? FROM ?? WHERE ?? = ? ORDER BY ?? DESC LIMIT 1", queryValues);
-		
-		log.stringify(latestRound, "latest Round @ newMaster - iswinner");
-
-		//find winner 
-		
-		//I THINK NEW ROUND GETS CREATED TOO EARLY. MAKE SURE YOU DO THIS BEFORE CREATING NEW ROUND.
-		queryValues = ["player_id", "round_answer", "round_id", latestRound[0].id, "iswinner", 1];
-		let newMasterResult = await db.query("SELECT ?? FROM ?? WHERE ?? = ? AND ?? = ?", queryValues);
-		log.stringify(newMasterResult, "newmaster @ newMaster - iswinner");
-
-		newMaster = newMasterResult[0].player_id;
-
-
-	}
-
-		//Find the old master's state.
-		//Give the old master no-state.
-		// const oldMasterState = await db.select("state", "players", "id", oldMaster);
-		// State should be overwritten in when next game state is loaded.... well it didnt!
-		// await updatePlayerStates(socket, "disconnected-or-timeout");
-
-		//Change masters
-		await db.update("players", "ismaster", 0, "id", oldMaster);
-		await db.update("players", "ismaster", 1, "id", newMaster);
-
-		log.info(oldMaster + " lost Master privilege to " + newMaster);
-
-		//Give the new master that state
-		// await updatePlayerStates(socket, oldMasterState[0].state)
-
-		//Find new master name
-		const newMasterName = await db.select("fullname", "players", "id", newMaster);
-		const newMasterData = [newMaster, newMasterName[0].fullname];
-		io.in(socket.gameID).emit('newMaster', newMasterData);
-	
-	
-	//Make everyone refresh so everyone knows what's going on.
-	//The timer will be lost but reset.
-
-	if(originalNewMaster !== "winner"){
-		client.refresh(io, socket, socket.gameID);
-	}
-
-	return newMaster;
-}
 
 async function proceedWithMissingAnswers(io, socket){
 	log.debug("proceeding with missing answers")
@@ -1974,29 +1914,10 @@ async function scoreWinner(socket, winnerID){
 	client.emitPlayersInGame(io, socket);
 }
 
-async function startNewRound(io, socket){
-	//executed by master
-
-	//Set new master to winner
-	const newMasterID = await newMaster(io, socket, "winner");
-
-	//start new round
-	game.start(io, socket, newMasterID);
-	client.refresh(io, socket, socket.gameID);
-
-}
 
 async function showLoader(io, socket){
 	io.in(socket.gameID).emit('show-loader');
 }
-
-
-
-
-
-
-
-
 
 
 
@@ -2010,9 +1931,13 @@ io.on('connection', (socket) => {
 	});
 	
 	socket.on('start-game', async function(){
-		game.start(io, socket);
-		await game.updateState(io, socket, "picking-question");
-		client.refresh(io, socket, socket.gameID);
+		if(!(await host.check(socket))){
+			log.important("Non host at socket start-game");
+			return;
+		}
+		await game.start(socket);
+		await game.newRound(io, socket);
+		client.refresh(io, socket, socket.gameID)
 	});
 
 	socket.on('what-is-my-state', function(){
@@ -2049,7 +1974,7 @@ io.on('connection', (socket) => {
 	});
 	
 	socket.on('disconnect', () => {
-		disconnectUser(io, socket);
+		client.disconnect(io, socket);
 	}); 
 
 }); //End of connection scope.
