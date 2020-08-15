@@ -12,5 +12,4 @@ Homestead.yaml
 npm-debug.log
 yarn-error.log
 storage/framework/sessions/*.*
-storage/framework/sessions/*
 resources/views/pages/maingm.blade.php
